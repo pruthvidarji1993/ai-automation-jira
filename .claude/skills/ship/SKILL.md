@@ -75,20 +75,71 @@ Fill this checklist with **real evidence** — paste command output, list real f
 ### PR readiness
 - [ ] Diff under 500 lines (otherwise split per plan): <actual count>
 - [ ] No secrets / debug code in diff
-- [ ] Commits are clean (no "fix typo" chains)
+- [ ] Commits are clean (no "fix typo" chains) and follow Conventional Commits v1.0.0
 ```
 
 ## Step 4 — Open PR (status: `PR_OPEN`)
 
 ### Commit logical units
 
-The `implement` skill leaves all changes uncommitted in the working tree. After self-review, QA, and AI approval have all passed, commit the change here:
+The `implement` skill leaves all changes uncommitted in the working tree. After self-review, QA, and AI approval have all passed, commit the change here. All commits MUST follow [Conventional Commits v1.0.0](#commit-message-format-conventional-commits-v100).
 
-- **Default:** one commit for the whole change is fine — most teams squash-merge anyway. Use `<type>(<scope>): <subject>` referencing the ticket.
+- **Default:** one commit for the whole change is fine — most teams squash-merge anyway.
 - **Medium / large:** split into 2–4 logical commits (e.g. module + its test, handler + schema). Each commit must independently compile.
-- Stage with `git add <files>` (avoid `git add -A` — it can sweep in stray files). Commit with `git commit -m "<type>(<scope>): <subject>"`.
+- Stage with `git add <files>` (avoid `git add -A` — it can sweep in stray files). Commit with `git commit -m "<type>(<scope>): <description>"` (use repeated `-m` flags for body/footers).
 - Do not bypass pre-commit hooks (no `--no-verify`). If a hook fails, fix the underlying issue and re-commit.
 - Do not use `git rebase -i` or `git add -i` — the harness blocks interactive flags. To restructure already-made commits, use `git reset --soft <base>` and recommit.
+
+### Commit message format (Conventional Commits v1.0.0)
+
+Structure:
+
+```
+<type>[optional scope][optional !]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+**Type** (required, lowercase):
+
+| type       | meaning                                   | SemVer  |
+|------------|-------------------------------------------|---------|
+| `feat`     | a new feature                             | MINOR   |
+| `fix`      | a bug fix                                 | PATCH   |
+| `docs`     | documentation only                        | —       |
+| `style`    | formatting, no code-meaning change        | —       |
+| `refactor` | behavior-preserving restructuring         | —       |
+| `perf`     | performance improvement                   | —       |
+| `test`     | adding or fixing tests                     | —       |
+| `build`    | build system / dependencies               | —       |
+| `ci`       | CI configuration                          | —       |
+| `chore`    | maintenance, no src/test change           | —       |
+
+**Rules:**
+
+- **Scope** (optional) gives context in parentheses, e.g. `feat(parser): ...`. Prefer a real module/area name.
+- **Description** (required): short, imperative mood, lowercase, no trailing period. Keep the header ≤ ~72 chars.
+- **Body** (optional): MUST be separated from the description by one blank line. Explain *what* and *why*, not *how*.
+- **Footers** (optional): git-trailer format `Token: value` (hyphenate multi-word tokens, e.g. `Reviewed-by`). Reference the ticket here, e.g. `Refs: WEB-123` or `Closes: WEB-123`.
+- **Breaking changes:** signal with EITHER a `!` before the colon (`feat(api)!: ...`) OR a `BREAKING CHANGE: <description>` footer (uppercase, mandatory). Either bumps the MAJOR version.
+
+Examples:
+
+```
+feat(auth): add password reset flow
+
+Refs: WEB-123
+```
+
+```
+fix(api)!: drop support for legacy v1 tokens
+
+BREAKING CHANGE: v1 bearer tokens are no longer accepted; clients must migrate to v2.
+
+Closes: WEB-456
+```
 
 ### Preflight
 
@@ -134,7 +185,7 @@ If no template is found, use a minimal body:
 
 `gh pr list --head <branch> --json number,url`. 
 - If a PR exists: update its body with the current run summary; do not create a duplicate.
-- If not: `gh pr create --base <target> --head <branch> --title "<type>(<scope>): <subject>" --body "<rendered body via HEREDOC>"`.
+- If not: `gh pr create --base <target> --head <branch> --title "<type>(<scope>): <description>" --body "<rendered body via HEREDOC>"`. The title MUST follow the same [Conventional Commits format](#commit-message-format-conventional-commits-v100).
 
 Reference the ticket. Mark the PR ready for review (not draft) unless `size = large`, in which case draft is acceptable.
 
@@ -170,7 +221,13 @@ PR action:   <created|updated>
 Review iter: <N (if applicable)>
 ```
 
-## Verification
+**Always end the report with the PR URL on its own final line**, regardless of `PR action` (created OR updated) or whether this was a resume / idempotent re-invoke:
+
+```
+🔗 PR: <url>
+```
+
+If the PR already existed and was only updated, still emit this line — the URL is the one thing the caller always needs back.
 
 - `gh pr view <pr_url>` succeeds.
 - Branch is on the remote at the expected SHA.
@@ -185,9 +242,11 @@ Review iter: <N (if applicable)>
 | Implementer ≠ self-reviewer (medium+) | Spawn a fresh-context Agent                                  |
 | Never approve own PR          | Only external reviewer or human approves                           |
 | Never force-push              | Preserve review history                                            |
+| Conventional Commits          | Every commit + PR title follows Conventional Commits v1.0.0        |
 | Don't resolve reviewer threads | Reply with evidence; the reviewer resolves their own              |
 | Never dismiss reviews         | Only address or reply                                              |
 | Idempotent PR open            | Always check for existing PR first                                 |
+| Always surface the PR URL last | End the report with `🔗 PR: <url>` on its own line — created or updated, fresh run or resume |
 
 ## Failure modes
 

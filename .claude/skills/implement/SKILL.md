@@ -18,7 +18,14 @@ Turn the approved plan into reviewed-quality code on a feature branch.
 1. **Preflight.**
    - `git fetch origin`.
    - Determine the PR target branch. Default to `main` unless `gh repo view --json defaultBranchRef -q .defaultBranchRef.name` returns something else.
-   - Default branch name: `<task_type>/<ticket-or-slug>`. If the branch already exists (resume case): `git checkout` it; do not recreate.
+   - Derive the branch name using the [Branch naming](#branch-naming) convention below.
+   - Check whether the branch already exists (local or remote): `git rev-parse --verify <branch>` or `git ls-remote --exit-code --heads origin <branch>`.
+     - **If it does not exist:** create and check it out.
+     - **If it already exists: STOP — do not check it out automatically.** This is the **Branch Gate**. Show the user the existing branch (last commit, ahead/behind vs. the target branch) and ask how to proceed:
+       1. **Continue on the existing branch** — `git checkout <branch>` and resume (see resume handling in Failure modes).
+       2. **Create a new branch** — propose a disambiguated name (e.g. append `-2` or a more specific slug) and create it from the target branch.
+
+       Do not proceed past this gate without an explicit choice.
 
 2. **Worker isolation (medium/large only).** For `medium` or `large` plans, you may spawn an `Agent` with `isolation: "worktree"` to run the implementation off the orchestrator's working tree. Before spawning:
    - `git worktree list` — check for stale entries.
@@ -40,6 +47,31 @@ Turn the approved plan into reviewed-quality code on a feature branch.
    - Address each point explicitly with new edits in the working tree (still no commits — `ship` will commit).
 
 5. **No drive-by changes.** If you spot an unrelated bug or want to clean up adjacent code, note it as a follow-up and keep going.
+
+## Branch naming
+
+Format: `<type>/<ticket-or-slug>`.
+
+`<type>` must be a conventional branch type — map the intake `task_type` to one of:
+
+| type       | use for                                  |
+|------------|------------------------------------------|
+| `feat`     | new feature / capability                 |
+| `fix`      | bug fix                                   |
+| `chore`    | maintenance, deps, config                 |
+| `docs`     | documentation only                        |
+| `refactor` | behavior-preserving restructuring         |
+| `test`     | adding or fixing tests                     |
+| `perf`     | performance improvement                   |
+| `ci`       | CI / pipeline changes                     |
+| `build`    | build system / tooling                    |
+
+Rules:
+
+1. **Ticket number provided** → `<type>/<ticket-number>`, e.g. `feat/WEB-123`, `fix/WEB-456`, `chore/OPS-12`.
+2. **No ticket number** → `<type>/<slug>`, e.g. `feat/user-authentication`, `fix/login-validation`, `refactor/api-client`.
+3. Slugs are lowercase with hyphens (`-`) instead of spaces.
+4. Before creating a branch, check whether it already exists (see Preflight). If it exists, **stop at the Branch Gate** and ask the user whether to continue on it or create a new (disambiguated) branch — never check it out automatically.
 
 ## Hard rules
 
@@ -76,5 +108,6 @@ Blockers:      <none | description>
 
 - **Verification fails repeatedly:** stop and report a blocker.
 - **Plan step is wrong:** stop, note the deviation, ask the orchestrator for guidance rather than silently re-planning.
-- **Resume sees existing branch + uncommitted diff:** re-derive remaining work from the plan vs. the current working-tree diff. Don't re-apply edits already present. (Trade-off of no per-step commits: mid-run resume is less precise. If pausing for a long time, commit manually before stepping away.)
+- **Branch already exists at preflight:** stop at the **Branch Gate** — ask the user whether to continue on the existing branch or create a new disambiguated one. Never auto-checkout.
+- **Resume sees existing branch + uncommitted diff:** (after the user chose "continue" at the Branch Gate) re-derive remaining work from the plan vs. the current working-tree diff. Don't re-apply edits already present. (Trade-off of no per-step commits: mid-run resume is less precise. If pausing for a long time, commit manually before stepping away.)
 - **Worktree spawn fails:** prune + retry once; on second failure, fall back to in-place and log it.
