@@ -189,6 +189,28 @@ If no template is found, use a minimal body:
 
 Reference the ticket. Mark the PR ready for review (not draft) unless `size = large`, in which case draft is acceptable.
 
+### Move the Jira ticket to its "in review" status
+
+Runs **once**, only right after a PR is newly created (not on idempotent re-invokes that merely update an existing PR). Portable across projects — never hardcode a status name; discover it from the ticket's own workflow each time.
+
+Skip this whole sub-step with a note in the output (don't fail the ship) if:
+- No Atlassian/JIRA MCP is connected.
+- `ticket` isn't a resolvable Jira key (extract with `^[A-Z][A-Z0-9]+-\d+` from either a bare key or a Jira URL; if nothing matches, skip).
+
+Otherwise:
+
+1. **Read current status** — `getJiraIssue` (or equivalent) for the ticket. If its status already looks like a review state (case-insensitive match against `review` — e.g. "In Review", "Review", "Code Review", "Peer Review", "Ready for Review"), skip; already there.
+2. **List available transitions** — `getTransitionsForJiraIssue` for the ticket. This returns the *actual* transitions this specific workflow allows from the current status, each with an `id` and target status `name`. Never assume a fixed transition ID or name across projects — workflows differ per Jira project/board.
+3. **Pick the best match** against the returned transition target names, in priority order:
+   1. Exact case-insensitive match: `in review`
+   2. Exact case-insensitive match: `review`
+   3. Exact case-insensitive match to a known synonym: `code review`, `peer review`, `ready for review`, `in code review`
+   4. Any transition target whose name *contains* `review` (case-insensitive) if nothing above matched
+4. **If a match is found:** call `transitionJiraIssue` with that transition's `id`.
+5. **If no match is found:** don't guess or force a transition — leave the ticket status untouched, and surface which transitions *were* available in the ship output so the user can move it manually or extend the synonym list.
+
+This makes the step self-adapting: drop the same `ship` skill into any project and it queries that project's own workflow instead of assuming a status name.
+
 ## Step 5 — Address review comments (status: `REVIEW_CYCLE`)
 
 After the PR opens, check for existing reviews. If none yet: notify the user, proceed to report — don't block. The review cycle runs on the next invocation when comments exist.
@@ -218,6 +240,7 @@ Template:    <path used | "minimal — no template found">
 Pushed:      <branch>
 PR:          <url>
 PR action:   <created|updated>
+Jira status: <moved "<from>" → "<to>" | already in review | skipped — reason>
 Review iter: <N (if applicable)>
 ```
 
@@ -246,6 +269,8 @@ If the PR already existed and was only updated, still emit this line — the URL
 | Don't resolve reviewer threads | Reply with evidence; the reviewer resolves their own              |
 | Never dismiss reviews         | Only address or reply                                              |
 | Idempotent PR open            | Always check for existing PR first                                 |
+| Jira transition never hardcoded | Discover the review-state transition from `getTransitionsForJiraIssue` each time; never assume a fixed status name/ID across projects |
+| Jira transition fires once    | Only on new PR creation, not on idempotent re-invokes/updates       |
 | Always surface the PR URL last | End the report with `🔗 PR: <url>` on its own line — created or updated, fresh run or resume |
 
 ## Failure modes
@@ -255,3 +280,5 @@ If the PR already existed and was only updated, still emit this line — the URL
 - **PR body too long for template fields:** truncate, link to the run summary or ticket for full detail.
 - **No PR template found:** use the minimal body above; note "no template found" in output.
 - **Review loop hits max iterations:** stop, surface unresolved comments to the user, do not silently force progression.
+- **No Jira transition matches "review":** don't force it — report the available transition names to the user and leave the ticket status as-is.
+- **Atlassian MCP not connected / ticket key not resolvable:** skip the Jira transition step, note it in the output, and continue (never block the PR on this).
