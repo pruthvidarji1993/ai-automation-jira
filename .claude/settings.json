@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "balador-ai-skills-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "bhavin-zignuts/balador-ai-skills-marketplace"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "balador-skills@balador-ai-skills-marketplace": true
+  }
+}
