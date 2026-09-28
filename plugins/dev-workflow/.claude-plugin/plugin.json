@@ -1,0 +1,16 @@
+{
+  "name": "dev-workflow",
+  "displayName": "Dev Workflow Skills",
+  "version": "1.0.0",
+  "description": "Intake through ship: skills for the full SDLC flow (debug, feature, implement, intake, plan, refactor, research, review, ship, test)",
+  "author": {
+    "name": "pruthvidarji1993",
+    "email": "pruthvid@zignuts.com"
+  },
+  "repository": "https://github.com/pruthvidarji1993/ai-automation-jira",
+  "keywords": ["workflow", "sdlc", "skills"],
+  "defaultEnabled": true,
+  "skills": [
+    "./skills/"
+  ]
+}
