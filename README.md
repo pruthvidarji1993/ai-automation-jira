@@ -74,7 +74,47 @@ If you prefer an IDE-first approach, you can install the **Claude Extension** or
 
 ---
 
-### 2. Loaded Skills Registry
+### 2. Install the Workflow as a Plugin (Use It in Any Project)
+
+The 10 workflow skills are also packaged as the **`dev-workflow`** Claude Code plugin, published through this repo's own marketplace (`ai-automation-jira-marketplace`). Installing it makes the commands available in **any** project, not just this repo — no need to copy `.claude/skills/` around.
+
+| File | Purpose |
+| :--- | :--- |
+| [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) | Declares the `ai-automation-jira-marketplace` marketplace and the plugins it offers |
+| [plugins/dev-workflow/.claude-plugin/plugin.json](plugins/dev-workflow/.claude-plugin/plugin.json) | Plugin manifest for `dev-workflow` |
+| [plugins/dev-workflow/skills/](plugins/dev-workflow/skills/) | The skills shipped in the plugin |
+
+#### First-time setup
+
+1. Add the marketplace:
+   ```bash
+   claude plugin marketplace add pruthvidarji1993/ai-automation-jira
+   ```
+2. Install the plugin:
+   ```bash
+   claude plugin install dev-workflow@ai-automation-jira-marketplace
+   ```
+3. **Restart Claude** so the plugin takes effect.
+
+#### Getting future updates
+
+Whenever the workflow is updated in this repo:
+
+1. Re-sync the cached marketplace with the latest changes:
+   ```bash
+   claude plugin marketplace update ai-automation-jira-marketplace
+   ```
+2. Update the installed plugin:
+   ```bash
+   claude plugin update dev-workflow@ai-automation-jira-marketplace
+   ```
+3. Restart Claude to load the new version.
+
+> 💡 Plugin skills are namespaced by the plugin name, so they may appear as `/dev-workflow:feature`, `/dev-workflow:intake`, etc. Type `/` in Claude to see the exact names available.
+
+---
+
+### 3. Loaded Skills Registry
 
 This repository comes pre-loaded with **10 custom AI skills** located under [.claude/skills/](.claude/skills/). 
 
@@ -82,7 +122,7 @@ When you launch `claude` in your terminal or IDE inside this workspace, Claude a
 
 ---
 
-### 3. Running the Autonomous Flow
+### 4. Running the Autonomous Flow
 To run the full end-to-end flow with a single command, use the `/feature` orchestrator skill:
 ```bash
 /feature ABC-123
@@ -102,7 +142,7 @@ Claude will:
 10. Run `/review` — runs a manual checklist, the full automated review pipeline (using Opus model), acceptance criteria check, and produces a summary report.
 11. Run `/ship` to commit and open a PR.
 
-### 4. Running Individual Skills
+### 5. Running Individual Skills
 If you want to run a single specific stage instead of the full pipeline, type the slash command directly in your Claude CLI session:
 
 | Skill Command | Where It Lives | What It Does |
