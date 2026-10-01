@@ -12,6 +12,7 @@ Verify behavior. Add tests where they're missing. Make failures actionable.
 - The working branch.
 - Task type (drives policy — bugfix requires a regression test).
 - Optional: reproduction steps from the `debug` skill (bugfix only).
+- Optional: `baseline_results` — lint/typecheck/existing-suite results from the orchestrator's speculative QA, plus the tree fingerprint they ran against. Reuse them only if the fingerprint (diff, status, and untracked-file hashes, as defined in `/feature` GATE 2) still matches. Otherwise ignore them and run the suite normally.
 
 ## Procedure
 
@@ -20,6 +21,8 @@ Verify behavior. Add tests where they're missing. Make failures actionable.
 
 2. **Run the existing suite.** Capture pass/fail counts and the first 10
    failures with `file:line`.
+   If valid `baseline_results` were passed, skip this run and use those
+   counts. After adding new tests, run only the new test files.
 
 3. **For bugfixes only:**
    - Convert the reproduction into a failing test in the canonical test

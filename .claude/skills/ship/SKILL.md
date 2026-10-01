@@ -25,10 +25,10 @@ Record the current sub-stage in your working notes after each transition: `SELF_
 |-----------|---------------------------------------------------------------------------------|
 | trivial   | Eyeball the diff (`git diff origin/<target>` — includes uncommitted changes)    |
 | small     | Eyeball + invoke the `review` skill once on the local diff                      |
-| medium    | Spawn an `Agent` (fresh context) with `subagent_type: "general-purpose"` to review the branch diff. The implementer must NOT review its own code. |
+| medium    | Spawn an `Agent` (fresh context) with `subagent_type: "general-purpose"` to review the branch diff, unless the reuse rule below applies. The implementer must NOT review its own code. |
 | large     | Same as medium, plus a `mosaic-local-review` or equivalent codegen-rules audit  |
 
-If the `review` stage already ran on this exact diff (same fingerprint) with a fresh-context reviewer, reuse its verdict instead of spawning another reviewer. A second review of an unchanged diff only spends tokens.
+**Reuse rule (inside `/feature`):** if the `review` stage in this run used a fresh-context reviewer, returned **GO**, and its targeted re-check covered the last fix pass, then the only changes since are test files the review saw through its `tests` lens. In that case, reuse that verdict as the self-review and don't spawn another reviewer. Record `self-review: reused review-stage verdict`. If any non-test code changed after review's last check, spawn the reviewer as the table says.
 
 Apply any blocking fixes from the review before continuing. Re-run tests if anything changed. Fixes stay in the working tree — they're committed in Step 4.
 
@@ -44,12 +44,11 @@ Run, in order:
 **Run 2–4 concurrently.** Lint, typecheck, and tests are independent, so after
 deps install, start them as parallel background `Bash` commands
 (`run_in_background: true`) in one message and collect all three results.
-This costs no extra agent tokens. Skip any check whose result you can
-**reuse**: if Stage 7 / speculative QA ran it and the tree fingerprint
-(`git diff HEAD | shasum` + `git status --porcelain | shasum`) still matches,
-reuse that result instead of re-running.
+This costs no extra agent tokens. QA always runs on the final tree. Results
+from earlier stages are not reused here, because this is the last check
+before commit.
 
-If anything fails: fix the code (not the test), re-run from step 1.
+If anything fails: fix the code (not the test), re-run from step 1. On a medium+ task whose self-review was reused, if the QA fix changed non-test code, spawn one fresh-context reviewer on the fix diff only.
 
 ### Regression mode (`--regression`)
 
@@ -270,9 +269,9 @@ If the PR already existed and was only updated, still emit this line — the URL
 
 | Rule                          | Detail                                                             |
 |-------------------------------|--------------------------------------------------------------------|
-| Never skip self-review        | "I'm confident in the diff" is not a substitute                    |
+| Never skip self-review        | "I'm confident in the diff" is not a substitute. Reusing the review stage's verdict under the reuse rule counts as a self-review. |
 | Never skip QA                 | "Already ran tests" is not a substitute                            |
-| Implementer ≠ self-reviewer (medium+) | Spawn a fresh-context Agent                                  |
+| Implementer ≠ self-reviewer (medium+) | Spawn a fresh-context Agent, or reuse the review-stage verdict under the Step 1 reuse rule |
 | Never approve own PR          | Only external reviewer or human approves                           |
 | Never force-push              | Preserve review history                                            |
 | Conventional Commits          | Every commit + PR title follows Conventional Commits v1.0.0        |

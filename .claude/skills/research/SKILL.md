@@ -11,7 +11,7 @@ Read the code before writing the plan. Evidence over conclusions.
 
 - Intake output: `task_type`, `size`, `summary`, `acceptance_criteria`.
 - Optional: explicit hypotheses to validate.
-- Optional: `prefetched_conventions` — a `## Project conventions` block from the orchestrator's background scan. When present, skip Step 3 and only spot-check one citation.
+- Optional: `prefetched_conventions` — a `## Project conventions` block from the orchestrator's background scan. When present, skip Step 3 and only spot-check one citation. If the orchestrator says the scan is still running, don't spawn track B or do Step 3 yet. Wait for the scan before Step 5 (Verify). If it failed, do Step 3 inline then.
 
 ## Depth by size
 
@@ -19,10 +19,10 @@ Read the code before writing the plan. Evidence over conclusions.
 |-----------|----------------------------------------------------------|-----------------------------------|
 | `trivial` | skipped (orchestrator routes around this stage)          | —                                 |
 | `small`   | Steps 1–3 + Step 5 happy-path only                       | Inline                            |
-| `medium`  | All steps; full verification                             | Parallel tracks **if** ≥ 2 apply  |
-| `large`   | All steps; full verification; cross-repo if applicable   | Parallel tracks **if** ≥ 2 apply  |
+| `medium`  | All steps; full verification                             | Inline, unless complexity is high and ≥ 2 tracks apply |
+| `large`   | All steps; full verification; cross-repo if applicable   | Inline, unless complexity is high and ≥ 2 tracks apply |
 
-## Parallel tracks (medium/large)
+## Parallel tracks (high complexity only)
 
 Steps 2–4 are independent reads, so they *can* run as concurrent `Explore`
 agents. First decide whether they should (the `/feature` "Fan-out decision"):

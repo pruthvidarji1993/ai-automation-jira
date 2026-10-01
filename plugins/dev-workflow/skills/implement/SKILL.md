@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Execute an approved plan as code changes on a feature branch. Verify each step before advancing; changes stay uncommitted for ship. For medium/large plans with parallel lanes, runs one agent per lane concurrently on disjoint file sets. Use after plan approval, or as step 4 of /feature.
+description: Execute an approved plan as code changes on a feature branch. Verify each step before advancing; changes stay uncommitted for ship. For high-complexity plans with parallel lanes, runs one agent per lane concurrently on disjoint file sets. Use after plan approval, or as step 4 of /feature.
 ---
 
 # implement
@@ -33,14 +33,17 @@ Turn the approved plan into reviewed-quality code on a feature branch.
    |-----------------------------------|-------------------------------------------------------------|
    | `single (sequential)`, or trivial/small | **Inline:** run step 3 for each plan step yourself    |
    | Lane 0 + 1 lane                   | **Inline:** one lane gains nothing from an agent            |
-   | Lane 0 + ≥2 lanes (medium/large), each lane ≥ ~30 LOC | **Parallel lanes** (below)               |
-   | Lanes exist but the task isn't high complexity, lanes are tiny, or the plan is < ~150 LOC | **Inline:** agents would cost more tokens than they save |
+   | Task isn't high complexity, lanes are tiny, or the plan is < ~150 LOC | **Inline:** agents would cost more tokens than they save |
+   | High complexity, lane 0 + ≥2 lanes, each lane ≥ ~30 LOC | **Parallel lanes** (below)             |
+
+   Rows are checked top to bottom, and the first match wins.
 
    The plan proposes lanes. Re-check them against the `/feature` "Fan-out decision" before spawning, and record the choice (`implement fan-out: 3 lanes` or `none — ~80 LOC`).
 
    **Parallel lanes procedure:**
    1. **Validate the lanes first.** Confirm no file appears in two lanes, comparing the plan's lists with any new files a step creates. If they overlap, merge those lanes. Never run overlapping lanes concurrently.
    2. **Run lane 0 inline**, with full verification (typecheck must pass) so every lane starts from a compiling foundation.
+   2b. **Snapshot before spawning:** record `git status --porcelain` and copy every currently modified or untracked file to `<scratchpad>/pre-lanes/`, keeping their paths. This is the restore point for integration checks.
    3. **Spawn one `Agent` per lane in a single message** (`subagent_type: "general-purpose"`).
       All lanes share the working tree on the feature branch. This is safe
       because their file sets are disjoint, and lane 0's uncommitted changes are
@@ -50,10 +53,15 @@ Turn the approved plan into reviewed-quality code on a feature branch.
       - **"You may only create or edit these files: <exclusive list>. If you need a change elsewhere, stop and report it. Do not make it."**
       - "Do not run any git command that changes state (checkout, stash, reset, add, commit, branch)."
       - **Scoped verification only:** lint/test only your own files (e.g. `npx eslint <files>`, `npx vitest run <your test files>`). Do not run full-project typecheck or build. Other lanes are mid-edit and will cause false failures.
+      - If the scoped tests share external state with other lanes (a database, fixed ports, a shared build cache), **lint only, and do not run tests**. Those tests run once at integration.
+      - "Report every file you created or edited" (the `files:` field must be complete).
       - the hard rules below (no type-safety bypasses, tests co-located, fix code not tests);
       - return format: `Lane <N>: <done|blocked> — files: <list> — verified: <commands + result> — needs-outside-lane: <none|description>`.
    4. **Integrate (inline, after all lanes return):**
-      - `git status --porcelain`: any file changed outside its lane's list → revert that file (`git checkout -- <file>` only if it was clean before, otherwise hand-fix it) and handle it inline.
+      - Compare `git status --porcelain` with the snapshot:
+        - a file changed that is in **no** lane's list → restore it from `pre-lanes/`, or with `git checkout -- <file>` if it wasn't in the snapshot (that is, it was clean), and redo that change inline;
+        - a lane reporting a file outside **its own** list → check that file against its owning lane's intent and hand-fix it inline;
+        - a file whose owner lane didn't report it → treat it as a cross-lane edit and review it by hand.
       - Apply any `needs-outside-lane` requests inline, one at a time.
       - Run **full** verification once: typecheck/build + the plan's verifications for every step.
       - If integration fails, fix it inline. Do not respawn lanes for integration bugs.
@@ -139,6 +147,6 @@ Blockers:      <none | description>
 - **Plan step is wrong:** stop, note the deviation, ask the orchestrator for guidance rather than silently re-planning.
 - **Branch already exists at preflight:** stop at the **Branch Gate** — ask the user whether to continue on the existing branch or create a new disambiguated one. Never auto-checkout.
 - **Resume sees existing branch + uncommitted diff:** (after the user chose "continue" at the Branch Gate) re-derive remaining work from the plan vs. the current working-tree diff. Don't re-apply edits already present. (Trade-off of no per-step commits: mid-run resume is less precise. If pausing for a long time, commit manually before stepping away.)
-- **Lane agent edits outside its file list:** discard that edit, redo it inline, and note it in the output.
+- **Lane agent edits outside its file list:** if the file belongs to no lane, restore it from the `pre-lanes/` snapshot and redo the change inline. If it belongs to another lane, don't restore it, because that would wipe the owner's work. Hand-fix it per the integration step. Note it in the output either way.
 - **Integration typecheck fails after lanes merge:** usually a contract mismatch between lanes. Fix it inline against lane 0's types. Don't re-run the lanes.
 - **Two lanes turn out to need the same file mid-run:** that lane reports `needs-outside-lane`. Apply the change inline after all lanes return. Never let two agents edit one file.

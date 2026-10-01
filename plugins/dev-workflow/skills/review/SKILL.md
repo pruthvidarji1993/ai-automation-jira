@@ -1,6 +1,6 @@
 ---
 name: review
-description: Structured review of a diff or PR. Produces findings categorized as critical / warning / info with a GO / NO-GO verdict. For medium/large diffs, spawn a fresh-context reviewer agent — the implementer must not review its own code. Use to review a PR, audit a local diff, or as step 7 of /feature.
+description: Structured review of a diff or PR. Produces findings categorized as critical / warning / info with a GO / NO-GO verdict. For medium/large diffs, a fresh-context reviewer (one combined agent, or parallel lens agents for high-complexity work) — the implementer must not review its own code. Use to review a PR, audit a local diff, or as step 7 of /feature.
 ---
 
 # review
@@ -14,7 +14,8 @@ Sharp, actionable review without writing code. Evidence-based: every finding inc
   - `<branch>` — diff against `main` (or configured base)
   - `<PR#>` — fetched via `gh pr view <#> --json files,additions,deletions` + `gh pr diff <#>`
 - Optional: `task_type` (tunes severity — bugfixes get harsher review of regression coverage).
-- Optional: `size` (drives reviewer isolation, below).
+- Optional: `size` and `complexity` (low/medium/high, from `/feature`). Together they drive reviewer isolation, below.
+- Optional mode (from `/feature` Test ∥ Review): `launch-lenses <diff>` runs 8.1 and spawns the background lenses, then returns `lenses pending`. `collect <diff>` spawns the `tests` lens, waits for every lens, then continues from 8.2 step 3 (merge). Inside `/feature`, steps 4–5 (fix pass and re-check) are handed back to the orchestrator's consolidated fix pass, then 8.3–8.7 run. Without a mode, run the whole procedure in one go.
 
 ## Reviewer isolation
 
@@ -22,8 +23,7 @@ Sharp, actionable review without writing code. Evidence-based: every finding inc
 |-----------|----------------------------------------------------------------------------------|
 | trivial   | Inline (the orchestrator)                                                        |
 | small     | Inline                                                                           |
-| medium    | **Fresh-context Agent.** Spawn with `subagent_type: "general-purpose"` and pass the diff + this skill's procedure. The implementer must NOT review its own code. |
-| large     | Same as medium                                                                   |
+| medium/large | **Fresh context required.** The implementer must NOT review its own code. 8.2's table decides one combined agent vs parallel lens agents. |
 
 For agent-spawned reviews, the prompt must include: the full diff, the AC from intake, the plan, the file:line evidence requirement, and a strict instruction "do not write code — produce findings only."
 
@@ -49,9 +49,11 @@ afterwards, not one fix loop per tool.
 
 | Diff                                                        | Execution                                                         |
 |-------------------------------------------------------------|-------------------------------------------------------------------|
-| trivial/small, or < ~150 changed LOC, or ≤ 3 files          | **Inline:** one pass applying the applicable lens checklists yourself. No agents. |
-| medium/large, routine, or only 1–2 lenses apply             | One `Agent` with the applicable lenses combined (reviewer must not be the implementer) |
+| trivial/small                                               | **Inline:** one pass applying the applicable lens checklists yourself. No agents. |
+| medium/large with low/medium complexity, or only 1–2 lenses apply | **One combined `Agent`** (`subagent_type: "general-purpose"`, `model: "opus"`) covering every applicable lens in a single fresh-context pass |
 | High complexity with ≥ 3 applicable lenses                  | **Parallel:** one `Agent` per lens, spawned in a single message   |
+
+Rows are checked top to bottom, and the first match wins.
 
 Only spawn the lenses whose "Run when" condition is actually true for this
 diff. Don't spawn a lens just to have it report "nothing applicable".
@@ -77,7 +79,8 @@ diff. Don't spawn a lens just to have it report "nothing applicable".
    Every lens prompt must say: **"Findings only — do not edit any file or run
    git commands."** It must also include the diff path, the intake AC, the
    plan, and this return format for each finding:
-   `[lens] <critical|high|warning|info> <file:line> — "<quote>" — issue — fix`.
+   `[lens] <critical|warning|info> <file:line> — "<quote>" — issue — fix`.
+   The lens applies the severity mapping in step 3 itself, before returning.
    (`code-simplifier` normally edits code. Its prompt must say to report the
    simplifications as findings instead.)
 3. **Merge:** dedupe findings that hit the same `file:line` (keep the highest
@@ -167,7 +170,7 @@ Present this table before handing back to the orchestrator:
 
 If any step in this procedure fails:
 
-1. Return to `implement` and fix the issues.
+1. Return to `implement` and fix the issues. Inside `/feature`, don't loop on your own: return the merged findings, and the orchestrator runs one consolidated fix pass.
 2. Re-run the failed step (and all subsequent steps).
 3. Only proceed to `ship` when ALL checks pass.
 4. If blocked on a check that requires scope expansion — stop and ask the user before continuing.
@@ -212,5 +215,5 @@ If any step in this procedure fails:
 - **Reviewer is also the implementer (medium+):** stop and spawn a fresh-context Agent. Self-review on medium+ is not allowed.
 - **pr-review-toolkit not installed:** run the same lenses as `general-purpose` agents (or inline) with the lens checklist from the 8.2 table. Note "toolkit not available — generic lenses".
 - **A lens agent fails or returns uncited findings:** retry it once, then run that lens inline.
-- **A lens edited files despite instructions:** discard the edits (`git diff` against the snapshot) and keep only its findings.
+- **A lens edited files despite instructions:** files outside the snapshot's list that the `test` stage didn't create get deleted or reverted with `git checkout -- <file>`. Restore only the non-test files from the snapshot's file list to their snapshot state (`git apply` the snapshot onto a clean copy, or hand-revert). Never touch files the `test` stage created or edited. Keep only the lens's findings.
 - **react-doctor not installed:** use the `general-purpose` react lens.
