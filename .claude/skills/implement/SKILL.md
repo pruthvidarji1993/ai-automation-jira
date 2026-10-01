@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Execute an approved plan as code changes on a feature branch. One commit per logical step, verify each step before advancing. Optionally spawn isolated worker agents for medium/large tasks. Use after plan approval, or as step 4 of /feature.
+description: Execute an approved plan as code changes on a feature branch. Verify each step before advancing; changes stay uncommitted for ship. For medium/large plans with parallel lanes, runs one agent per lane concurrently on disjoint file sets. Use after plan approval, or as step 4 of /feature.
 ---
 
 # implement
@@ -27,14 +27,39 @@ Turn the approved plan into reviewed-quality code on a feature branch.
 
        Do not proceed past this gate without an explicit choice.
 
-2. **Worker isolation (medium/large only).** For `medium` or `large` plans, you may spawn an `Agent` with `isolation: "worktree"` to run the implementation off the orchestrator's working tree. Before spawning:
-   - `git worktree list` — check for stale entries.
-   - `git worktree prune` if any are stale.
-   - If worktree creation fails, retry once after prune. If it still fails, fall back to in-place implementation and note the fallback.
+2. **Choose the execution mode** from the plan's `### Parallel lanes`:
 
-   For `trivial` and `small`, work inline — workers add more overhead than they save.
+   | Plan says                         | Mode                                                        |
+   |-----------------------------------|-------------------------------------------------------------|
+   | `single (sequential)`, or trivial/small | **Inline:** run step 3 for each plan step yourself    |
+   | Lane 0 + 1 lane                   | **Inline:** one lane gains nothing from an agent            |
+   | Lane 0 + ≥2 lanes (medium/large), each lane ≥ ~30 LOC | **Parallel lanes** (below)               |
+   | Lanes exist but the task isn't high complexity, lanes are tiny, or the plan is < ~150 LOC | **Inline:** agents would cost more tokens than they save |
 
-3. **For each plan step:**
+   The plan proposes lanes. Re-check them against the `/feature` "Fan-out decision" before spawning, and record the choice (`implement fan-out: 3 lanes` or `none — ~80 LOC`).
+
+   **Parallel lanes procedure:**
+   1. **Validate the lanes first.** Confirm no file appears in two lanes, comparing the plan's lists with any new files a step creates. If they overlap, merge those lanes. Never run overlapping lanes concurrently.
+   2. **Run lane 0 inline**, with full verification (typecheck must pass) so every lane starts from a compiling foundation.
+   3. **Spawn one `Agent` per lane in a single message** (`subagent_type: "general-purpose"`).
+      All lanes share the working tree on the feature branch. This is safe
+      because their file sets are disjoint, and lane 0's uncommitted changes are
+      visible to them. (Worktrees would not see uncommitted lane 0 changes.)
+      Each lane prompt must include:
+      - the lane's plan steps verbatim, the research `file:line` evidence for them, project conventions, and the selected solution;
+      - **"You may only create or edit these files: <exclusive list>. If you need a change elsewhere, stop and report it. Do not make it."**
+      - "Do not run any git command that changes state (checkout, stash, reset, add, commit, branch)."
+      - **Scoped verification only:** lint/test only your own files (e.g. `npx eslint <files>`, `npx vitest run <your test files>`). Do not run full-project typecheck or build. Other lanes are mid-edit and will cause false failures.
+      - the hard rules below (no type-safety bypasses, tests co-located, fix code not tests);
+      - return format: `Lane <N>: <done|blocked> — files: <list> — verified: <commands + result> — needs-outside-lane: <none|description>`.
+   4. **Integrate (inline, after all lanes return):**
+      - `git status --porcelain`: any file changed outside its lane's list → revert that file (`git checkout -- <file>` only if it was clean before, otherwise hand-fix it) and handle it inline.
+      - Apply any `needs-outside-lane` requests inline, one at a time.
+      - Run **full** verification once: typecheck/build + the plan's verifications for every step.
+      - If integration fails, fix it inline. Do not respawn lanes for integration bugs.
+   5. A lane that returns `blocked` or fails: retry that one lane once with the error added to its prompt, then finish it inline.
+
+3. **For each plan step (inline mode, lane 0, and integration fixes):**
    1. Re-read the step.
    2. Make the change. Edit existing files in preference to creating new ones.
    3. Run the verification declared in the plan (typecheck, unit test, command).
@@ -45,6 +70,7 @@ Turn the approved plan into reviewed-quality code on a feature branch.
 4. **If `feedback` is set:**
    - Surface the feedback at the top of your working context.
    - Address each point explicitly with new edits in the working tree (still no commits — `ship` will commit).
+   - When feedback is a merged list from Test ∥ Review, fix it in **one pass**. If the fixes fall into ≥2 disjoint file groups and there are more than ~5 of them, you may run them as parallel lanes using the same procedure. Otherwise fix inline.
 
 5. **No drive-by changes.** If you spot an unrelated bug or want to clean up adjacent code, note it as a follow-up and keep going.
 
@@ -88,7 +114,9 @@ Report to the caller:
 
 ```
 Branch:        <branch>
-Worker:        <inline | worktree:/path/to/wt>
+Mode:          <inline | parallel: N lanes (lane 0 inline)>
+Lanes:
+  - lane <N>: <done|retried|inline-fallback> — <files>
 Plan steps:
   - <step 1 subject> [verified ✓]
   - <step 2 subject> [verified ✓]
@@ -99,6 +127,7 @@ Blockers:      <none | description>
 ## Verification
 
 - Branch exists and is checked out.
+- Parallel mode: every changed file belongs to exactly one lane (or lane 0 / integration), and full typecheck ran after the lanes merged.
 - `git diff` shows the planned changes in the working tree.
 - Every plan step is either complete or has a reported blocker.
 - No `WIP`, `fixup`, or unresolved merge markers in the diff.
@@ -110,4 +139,6 @@ Blockers:      <none | description>
 - **Plan step is wrong:** stop, note the deviation, ask the orchestrator for guidance rather than silently re-planning.
 - **Branch already exists at preflight:** stop at the **Branch Gate** — ask the user whether to continue on the existing branch or create a new disambiguated one. Never auto-checkout.
 - **Resume sees existing branch + uncommitted diff:** (after the user chose "continue" at the Branch Gate) re-derive remaining work from the plan vs. the current working-tree diff. Don't re-apply edits already present. (Trade-off of no per-step commits: mid-run resume is less precise. If pausing for a long time, commit manually before stepping away.)
-- **Worktree spawn fails:** prune + retry once; on second failure, fall back to in-place and log it.
+- **Lane agent edits outside its file list:** discard that edit, redo it inline, and note it in the output.
+- **Integration typecheck fails after lanes merge:** usually a contract mismatch between lanes. Fix it inline against lane 0's types. Don't re-run the lanes.
+- **Two lanes turn out to need the same file mid-run:** that lane reports `needs-outside-lane`. Apply the change inline after all lanes return. Never let two agents edit one file.

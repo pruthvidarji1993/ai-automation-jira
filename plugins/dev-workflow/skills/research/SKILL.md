@@ -11,15 +11,53 @@ Read the code before writing the plan. Evidence over conclusions.
 
 - Intake output: `task_type`, `size`, `summary`, `acceptance_criteria`.
 - Optional: explicit hypotheses to validate.
+- Optional: `prefetched_conventions` — a `## Project conventions` block from the orchestrator's background scan. When present, skip Step 3 and only spot-check one citation.
 
 ## Depth by size
 
-| Size      | Steps run                                                |
-|-----------|----------------------------------------------------------|
-| `trivial` | skipped (orchestrator routes around this stage)          |
-| `small`   | Steps 1–3 + Step 5 happy-path only                       |
-| `medium`  | All steps; full verification                             |
-| `large`   | All steps; full verification; cross-repo if applicable   |
+| Size      | Steps run                                                | Execution                         |
+|-----------|----------------------------------------------------------|-----------------------------------|
+| `trivial` | skipped (orchestrator routes around this stage)          | —                                 |
+| `small`   | Steps 1–3 + Step 5 happy-path only                       | Inline                            |
+| `medium`  | All steps; full verification                             | Parallel tracks **if** ≥ 2 apply  |
+| `large`   | All steps; full verification; cross-repo if applicable   | Parallel tracks **if** ≥ 2 apply  |
+
+## Parallel tracks (medium/large)
+
+Steps 2–4 are independent reads, so they *can* run as concurrent `Explore`
+agents. First decide whether they should (the `/feature` "Fan-out decision"):
+
+- **Low/medium complexity** → run Steps 2–4 inline. No agents.
+- **High complexity:** pick the tracks whose "Spawn when" condition is true for **this** task.
+- **Only 1 track applies, or the area is small** (single module, ≤ ~5 files to read) → run Steps 2–4 inline. No agents.
+- **≥ 2 substantial tracks apply** → spawn just those tracks (`subagent_type: "Explore"`, thoroughness "very thorough") in **one message**.
+- Record the decision, e.g. `research fan-out: A+C (async job) — B prefetched, D n/a`.
+
+| Track | Covers               | Agent asks                                                                                       | Spawn when                         |
+|-------|----------------------|--------------------------------------------------------------------------------------------------|------------------------------------|
+| A     | Locate + impact      | Module dir, key components, every caller/consumer and importer of what's changing (3+ synonyms) | Always (inline if the area is small) |
+| B     | Conventions + tests  | Step 3 conventions + existing tests for the affected module and how they're run                  | No `prefetched_conventions`, or tests are spread across many dirs |
+| C     | Async lifecycle      | Step 4 trace: handler → service → hooks → jobs → push → client, with UX signals                  | Operation could be async           |
+| D     | Cross-repo contract  | The other side of any API/schema/event contract the change touches                               | Large, or intake flags cross-team  |
+
+Each agent prompt must include: the intake summary and AC verbatim, the
+track's scope, the 3+ synonym search rule, "read-only — do not edit files or
+run git commands", and the required return format:
+
+```
+### Track <X> findings
+- <path:line> — <fact>   (every bullet cited)
+### Open questions
+- <…>
+```
+
+**Merge (inline, after all tracks return):**
+1. Union the findings and dedupe by `path:line`.
+2. Spot-check at least one citation per track by opening the cited line. If a citation is wrong, drop that finding and re-check the track's other claims.
+3. Resolve conflicts between tracks by reading the code yourself. Don't pick a side without evidence.
+4. Then run Step 5 (Verify) and Step 6 (Hypotheses) **inline**. Verification runs real commands and stays with the parent.
+
+If a track agent fails or returns uncited claims, retry it once, then do that track inline.
 
 ## Procedure
 
@@ -72,6 +110,9 @@ State 2–3 hypotheses about the approach. Mark each `validated | refuted | open
 
 ### Async concerns
 <lifecycle trace; "n/a" if synchronous>
+
+### Independence hints (for the plan's parallel lanes)
+- <file group> ↔ <file group>: <independent | coupled via path:line>
 
 ### Hypotheses
 | # | Hypothesis | Status                  | Evidence       |

@@ -39,48 +39,66 @@ Run these checks inline before spawning any agents:
 - [ ] Follows existing codebase patterns (imports, naming, structure)
 - [ ] No hardcoded values — uses env vars, constants, or config
 
-### 8.2 Automated Review Pipeline
+### 8.2 Automated Review — lenses (parallel when it pays off)
 
-**Run these review tools sequentially. Fix ALL issues from a tool before running the next.**
+The lenses are independent read-only analyses of the same diff. Reviewers
+produce findings only. All fixes happen in **one consolidated pass**
+afterwards, not one fix loop per tool.
 
-Spawn each agent with `model: "claude-opus-4-8"` explicitly — do not inherit the session model.
+**First decide how to run them** (see the `/feature` "Fan-out decision"):
 
-#### Step 1: General Code Review (`/pr-review-toolkit:review-pr code`)
+| Diff                                                        | Execution                                                         |
+|-------------------------------------------------------------|-------------------------------------------------------------------|
+| trivial/small, or < ~150 changed LOC, or ≤ 3 files          | **Inline:** one pass applying the applicable lens checklists yourself. No agents. |
+| medium/large, routine, or only 1–2 lenses apply             | One `Agent` with the applicable lenses combined (reviewer must not be the implementer) |
+| High complexity with ≥ 3 applicable lenses                  | **Parallel:** one `Agent` per lens, spawned in a single message   |
 
-Invoke the `pr-review-toolkit:review-pr` skill with arg `code`. This runs the `code-reviewer` agent (Opus, confidence ≥ 80). Checks: CLAUDE.md compliance, bug detection, logic errors, null/undefined risks, race conditions, security. **Fix all reported issues before Step 2.**
+Only spawn the lenses whose "Run when" condition is actually true for this
+diff. Don't spawn a lens just to have it report "nothing applicable".
 
-#### Step 2: Silent Failure Hunter (`/pr-review-toolkit:review-pr errors`)
+1. **Snapshot the diff** to a file (`git diff <base> > <scratchpad>/review.diff`,
+   or reuse `impl.diff` from the orchestrator). Every lens reviews this one
+   snapshot.
+2. **Run the applicable lenses.** For agents, use `model: "opus"`. Use the
+   `pr-review-toolkit` agent when it is installed. Otherwise use
+   `general-purpose` with the lens checklist below.
 
-Invoke the `pr-review-toolkit:review-pr` skill with arg `errors`. Checks: empty catch blocks, swallowed errors, missing user feedback, broad catches, unjustified fallbacks. **Zero tolerance for CRITICAL and HIGH silent failures — fix all before Step 3.**
+   | Lens      | Agent (`subagent_type`)                         | Checks                                                                 | Run when                     |
+   |-----------|-------------------------------------------------|------------------------------------------------------------------------|------------------------------|
+   | code      | `pr-review-toolkit:code-reviewer`               | CLAUDE.md compliance, bugs, logic, null/undefined, races, security (confidence ≥ 80) | Always             |
+   | errors    | `pr-review-toolkit:silent-failure-hunter`       | Empty catches, swallowed errors, missing user feedback, broad catches  | Diff adds/changes error handling, I/O, or async calls |
+   | types     | `pr-review-toolkit:type-design-analyzer`        | Encapsulation, invariant expression/usefulness/enforcement (score /10) | New types introduced         |
+   | comments  | `pr-review-toolkit:comment-analyzer`            | Comment accuracy vs code, stale/misleading comments                    | Comments added/changed       |
+   | simplify  | `pr-review-toolkit:code-simplifier`             | Needless complexity, nested ternaries, redundancy, naming              | > ~50 LOC of new logic       |
+   | react     | `general-purpose` (or `/react-doctor` inline)   | Hook rules, stale closures, deps, re-renders, keys                     | React components changed     |
+   | tests     | `pr-review-toolkit:pr-test-analyzer`            | Behavioral coverage, critical paths, edge cases (gaps rated /10)       | **After** `test` finishes (needs the new tests) |
+   | impact    | `Explore`                                       | §8.5: every importer/consumer of changed exports still works           | Changed exports have > 3 consumers |
 
-#### Step 3: Test Coverage Analysis (`/pr-review-toolkit:review-pr tests`)
+   Every lens prompt must say: **"Findings only — do not edit any file or run
+   git commands."** It must also include the diff path, the intake AC, the
+   plan, and this return format for each finding:
+   `[lens] <critical|high|warning|info> <file:line> — "<quote>" — issue — fix`.
+   (`code-simplifier` normally edits code. Its prompt must say to report the
+   simplifications as findings instead.)
+3. **Merge:** dedupe findings that hit the same `file:line` (keep the highest
+   severity and note which lenses agreed). Map lens severities onto
+   critical / warning / info:
+   - **critical:** code-reviewer bugs/security; CRITICAL/HIGH silent failures; test gaps rated 8–10; type dimensions < 5/10; factually wrong comments; React hook-rule violations.
+   - **warning:** everything else that should be fixed before merge.
+   - **info:** optional simplifications and style.
+4. **One fix pass:** hand the merged critical + warning list to `implement` as a
+   single feedback input (inside `/feature`), or fix it inline when `review` is
+   run standalone. Apply the simplifications that improve readability without
+   changing behaviour.
+5. **Targeted re-check:** re-run only the lenses that reported critical/warning
+   findings, against the new diff. Don't repeat the whole set.
 
-Invoke the `pr-review-toolkit:review-pr` skill with arg `tests`. Checks: behavioral coverage, critical code paths, edge cases, missing error handling tests. **Add any missing tests rated 8–10 (critical gaps) before Step 4.**
-
-#### Step 4: Type Design Review (`/pr-review-toolkit:review-pr types`)
-
-Invoke only if new types were introduced. Checks: encapsulation, invariant expression, invariant usefulness, invariant enforcement. **Fix any dimension rated below 5/10 before Step 5.**
-
-#### Step 5: Comment Quality (`/pr-review-toolkit:review-pr comments`)
-
-Invoke the `pr-review-toolkit:review-pr` skill with arg `comments`. Checks: factual accuracy of comments vs code, stale/misleading comments. **Fix any CRITICAL issues (factually incorrect comments) before Step 6.**
-
-#### Step 6: Code Simplification (`/pr-review-toolkit:review-pr simplify`)
-
-Invoke the `pr-review-toolkit:review-pr` skill with arg `simplify`. Checks: unnecessary complexity, nested ternaries, redundant code, unclear naming. **Apply simplifications that improve readability without changing behaviour.**
-
-#### Step 7: React Doctor (`/react-doctor`)
-
-Invoke only if React components were changed. Checks: hook rule violations, stale closures, missing deps, re-render issues, key prop issues. **Fix all React-specific issues before proceeding.**
-
-#### Automated Review Decision Matrix
-
-| Tool result | Action |
-|---|---|
-| 0 issues found | Proceed to next tool |
-| Issues found, all fixed | Re-run the same tool to verify, then proceed |
-| Issues found, can't fix without scope change | Document as known limitation, ask user |
-| All 8.2 steps pass | Proceed to 8.3 |
+| Merged result                                  | Action                                        |
+|------------------------------------------------|-----------------------------------------------|
+| 0 critical / 0 warning                         | Proceed to 8.3                                |
+| Findings found, all fixed, targeted re-check clean | Proceed to 8.3                            |
+| Finding needs a scope change                   | Document as known limitation, ask user        |
+| Same critical survives two fix passes          | Escalate to user                              |
 
 ### 8.3 Standard Review Pillars
 
@@ -111,12 +129,16 @@ Invoke only if React components were changed. Checks: hook rule violations, stal
 
 ### 8.4 Test Verification
 
+(Inside `/feature`, the `test` stage already ran the suite. Reuse its result and don't re-run unless the fix pass changed code.)
+
 - [ ] Find all related tests: `find . -name "*FeatureName*.test.*"` (adjust pattern to ticket name)
 - [ ] Existing tests still pass: run `npm test` or project-specific test command
 - [ ] New/updated tests cover the changes made
 - [ ] If tests fail — fix the CODE, not the test (unless requirements changed)
 
 ### 8.5 Impact Verification
+
+(If the `impact` lens ran in 8.2, confirm its findings here. Otherwise do this inline.)
 
 - [ ] Re-check all files that import/use the changed code
 - [ ] No unintended side effects on other features
@@ -177,7 +199,7 @@ If any step in this procedure fails:
 ## Verification
 
 - Manual checklist (8.1) completed before spawning any agents.
-- Automated review pipeline (8.2) ran all applicable steps with Opus model.
+- Automated review (8.2) ran only the applicable lenses, in the execution mode the size table picks (inline / one agent / parallel with `model: "opus"`). Every lens was findings-only.
 - Every finding in 8.3 has `file:line`, a quoted line, an issue, and a fix.
 - The verdict matches the critical count (`GO` iff zero criticals).
 - Plan's failure-mode table cross-check has been performed (note "none applicable" if no failure-mode table existed).
@@ -188,5 +210,7 @@ If any step in this procedure fails:
 - **Diff too large for a meaningful single pass:** split the review into chunks by file group; don't produce a shallow review. For PRs >1000 LOC, push back to the implementer to split.
 - **Duplicates the test stage's reports:** dedupe; defer to whichever stage saw it first.
 - **Reviewer is also the implementer (medium+):** stop and spawn a fresh-context Agent. Self-review on medium+ is not allowed.
-- **pr-review-toolkit not installed:** skip 8.2 steps that require it, note as "not available", and proceed with 8.3 manual review.
-- **react-doctor not installed:** skip 8.2 Step 7, note as "not available".
+- **pr-review-toolkit not installed:** run the same lenses as `general-purpose` agents (or inline) with the lens checklist from the 8.2 table. Note "toolkit not available — generic lenses".
+- **A lens agent fails or returns uncited findings:** retry it once, then run that lens inline.
+- **A lens edited files despite instructions:** discard the edits (`git diff` against the snapshot) and keep only its findings.
+- **react-doctor not installed:** use the `general-purpose` react lens.
