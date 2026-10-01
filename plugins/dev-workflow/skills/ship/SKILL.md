@@ -41,12 +41,16 @@ Run, in order:
 3. **Typecheck** (e.g., `npm run build` when build implies typecheck, or `tsc --noEmit`).
 4. **Tests** (e.g., `npm test`).
 
-**Run 2–4 concurrently.** Lint, typecheck, and tests are independent, so after
-deps install, start them as parallel background `Bash` commands
-(`run_in_background: true`) in one message and collect all three results.
-This costs no extra agent tokens. QA always runs on the final tree. Results
-from earlier stages are not reused here, because this is the last check
-before commit.
+**Default: run 1–4 one after another, in the foreground** (plain `Bash`, no
+`run_in_background`). This is the fastest option for most projects.
+
+Only for `medium`/`large` tasks whose lint + typecheck + tests are **known**
+to take more than ~60 s in total, you may start 2–4 as parallel background
+`Bash` commands in one message. Then wait for their completion
+notifications. Never poll, `sleep`, or busy-wait loop on them (`while kill -0 …`).
+
+QA always runs on the final tree. Results from earlier stages are not reused
+here, because this is the last check before commit.
 
 If anything fails: fix the code (not the test), re-run from step 1. On a medium+ task whose self-review was reused, if the QA fix changed non-test code, spawn one fresh-context reviewer on the fix diff only.
 

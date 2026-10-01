@@ -33,18 +33,18 @@ Turn the approved plan into reviewed-quality code on a feature branch.
    |-----------------------------------|-------------------------------------------------------------|
    | `single (sequential)`, or trivial/small | **Inline:** run step 3 for each plan step yourself    |
    | Lane 0 + 1 lane                   | **Inline:** one lane gains nothing from an agent            |
-   | Task isn't high complexity, lanes are tiny, or the plan is < ~150 LOC | **Inline:** agents would cost more tokens than they save |
-   | High complexity, lane 0 + ≥2 lanes, each lane ≥ ~30 LOC | **Parallel lanes** (below)             |
+   | Task isn't high complexity, lanes are tiny, or the plan is < ~300 LOC | **Inline:** agents would cost more tokens than they save |
+   | High complexity, plan ≥ ~300 LOC, lane 0 + ≥2 lanes of ≥ ~60 LOC each | **Parallel lanes: required** (below). Don't fall back to inline because of "coupling"; lane 0's contracts handle that |
 
    Rows are checked top to bottom, and the first match wins.
 
-   The plan proposes lanes. Re-check them against the `/feature` "Fan-out decision" before spawning, and record the choice (`implement fan-out: 3 lanes` or `none — ~80 LOC`).
+   The plan proposes lanes. Re-check them against the Fan-out decision in `feature/parallelism.md` before spawning, and record the choice (`implement fan-out: 3 lanes` or `none — ~80 LOC`).
 
    **Parallel lanes procedure:**
    1. **Validate the lanes first.** Confirm no file appears in two lanes, comparing the plan's lists with any new files a step creates. If they overlap, merge those lanes. Never run overlapping lanes concurrently.
-   2. **Run lane 0 inline**, with full verification (typecheck must pass) so every lane starts from a compiling foundation.
+   2. **Run lane 0 inline**, with full verification (typecheck must pass) so every lane starts from a compiling foundation. Lane 0 must contain a **typed stub for every export one lane uses from another** (e.g. `export function listIssues(f: ListFilters): ListResult { throw new Error('not implemented') }`). The owning lane replaces the stub body. If the plan's lane 0 lacks these stubs, add them now. That is what lets every lane start at once.
    2b. **Snapshot before spawning:** record `git status --porcelain` and copy every currently modified or untracked file to `<scratchpad>/pre-lanes/`, keeping their paths. This is the restore point for integration checks.
-   3. **Spawn one `Agent` per lane in a single message** (`subagent_type: "general-purpose"`).
+   3. **Spawn one `Agent` for every lane in a single message** (`subagent_type: "general-purpose"`). **Don't run lanes in waves** (e.g. lib lanes first, then routes/pages). Waves were measured to roughly halve the speed-up. A lane that calls another lane's code works against lane 0's stub signatures, and its tests mock or import the real module after integration.
       All lanes share the working tree on the feature branch. This is safe
       because their file sets are disjoint, and lane 0's uncommitted changes are
       visible to them. (Worktrees would not see uncommitted lane 0 changes.)

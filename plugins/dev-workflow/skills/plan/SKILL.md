@@ -24,14 +24,21 @@ Write the plan a human will approve. Vague plans produce vague implementations. 
 
 1b. **Parallel lanes (medium/large).** Group the steps into lanes so `implement`
     can run them as concurrent agents:
-   - **Lane 0 (foundation)** holds shared changes that other steps depend on
-     or that many steps would touch: shared types/interfaces, `package.json` /
-     lockfiles, config, barrel `index` files, DB schema/migrations. Lane 0 always
-     runs first, alone.
+   - **Lane 0 (foundation, contract-first)** holds shared changes that other
+     steps depend on or that many steps would touch: shared types/interfaces,
+     `package.json` / lockfiles, config, barrel `index` files, DB
+     schema/migrations. It also holds the **exported signatures** of any
+     module that another lane calls: write the function/class signatures with
+     their types (a stub body that throws `not implemented` is fine), and the
+     owning lane fills in the body. That turns "routes depend on store" into
+     "routes depend on lane 0", so the lanes can run in parallel. Lane 0
+     always runs first, alone, and must typecheck.
    - **Lanes 1..N** are groups of steps whose **file sets are disjoint** and
      that depend only on lane 0 (or nothing). Use research's independence hints.
    - Two steps that touch the same file go in the **same lane**. No exceptions.
-   - Merge any lane under ~30 LOC into a neighbour. Agent overhead isn't worth it.
+   - Merge any lane under ~60 LOC into a neighbour. Agent overhead isn't worth it.
+   - For high-complexity plans ≥ ~300 LOC, aim for 2–4 lanes. Typical split:
+     domain/lib · API/routes · UI/pages · background jobs/integrations.
    - Max 4 parallel lanes. If you'd need more, fold the smallest together.
    - If no real split exists, write `Lanes: single (sequential)` and say why.
    For `trivial`/`small`, write `Lanes: single (sequential) — size`.

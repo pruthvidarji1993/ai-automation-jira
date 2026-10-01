@@ -25,11 +25,12 @@ Read the code before writing the plan. Evidence over conclusions.
 ## Parallel tracks (high complexity only)
 
 Steps 2–4 are independent reads, so they *can* run as concurrent `Explore`
-agents. First decide whether they should (the `/feature` "Fan-out decision"):
+agents. First decide whether they should (the Fan-out decision in `feature/parallelism.md`):
 
 - **Low/medium complexity** → run Steps 2–4 inline. No agents.
 - **High complexity:** pick the tracks whose "Spawn when" condition is true for **this** task.
 - **Only 1 track applies, or the area is small** (single module, ≤ ~5 files to read) → run Steps 2–4 inline. No agents.
+- **Only one track is substantial** → do it inline with parallel `Read`/`Grep`/`Bash` calls in one message. Never spawn one foreground agent and wait on it.
 - **≥ 2 substantial tracks apply** → spawn just those tracks (`subagent_type: "Explore"`, thoroughness "very thorough") in **one message**.
 - Record the decision, e.g. `research fan-out: A+C (async job) — B prefetched, D n/a`.
 

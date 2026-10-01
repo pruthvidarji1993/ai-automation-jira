@@ -15,7 +15,7 @@ Sharp, actionable review without writing code. Evidence-based: every finding inc
   - `<PR#>` — fetched via `gh pr view <#> --json files,additions,deletions` + `gh pr diff <#>`
 - Optional: `task_type` (tunes severity — bugfixes get harsher review of regression coverage).
 - Optional: `size` and `complexity` (low/medium/high, from `/feature`). Together they drive reviewer isolation, below.
-- Optional mode (from `/feature` Test ∥ Review): `launch-lenses <diff>` runs 8.1 and spawns the background lenses, then returns `lenses pending`. `collect <diff>` spawns the `tests` lens, waits for every lens, then continues from 8.2 step 3 (merge). Inside `/feature`, steps 4–5 (fix pass and re-check) are handed back to the orchestrator's consolidated fix pass, then 8.3–8.7 run. Without a mode, run the whole procedure in one go.
+- Optional mode (from `/feature` Test ∥ Review): `collect <diff> findings=<…>`. The orchestrator already ran the fresh-context reviewer in the background, so don't spawn another one. Run 8.1, take the given findings into 8.2 step 3 (merge and severity mapping), hand criticals back to the orchestrator's consolidated fix pass (don't fix them here), then run 8.3–8.7. Without a mode, run the whole procedure in one go.
 
 ## Reviewer isolation
 
@@ -45,7 +45,7 @@ The lenses are independent read-only analyses of the same diff. Reviewers
 produce findings only. All fixes happen in **one consolidated pass**
 afterwards, not one fix loop per tool.
 
-**First decide how to run them** (see the `/feature` "Fan-out decision"):
+**First decide how to run them** (see the Fan-out decision in `feature/parallelism.md`):
 
 | Diff                                                        | Execution                                                         |
 |-------------------------------------------------------------|-------------------------------------------------------------------|
@@ -89,16 +89,17 @@ diff. Don't spawn a lens just to have it report "nothing applicable".
    - **critical:** code-reviewer bugs/security; CRITICAL/HIGH silent failures; test gaps rated 8–10; type dimensions < 5/10; factually wrong comments; React hook-rule violations.
    - **warning:** everything else that should be fixed before merge.
    - **info:** optional simplifications and style.
-4. **One fix pass:** hand the merged critical + warning list to `implement` as a
-   single feedback input (inside `/feature`), or fix it inline when `review` is
-   run standalone. Apply the simplifications that improve readability without
-   changing behaviour.
-5. **Targeted re-check:** re-run only the lenses that reported critical/warning
+4. **One fix pass:** inside `/feature`, hand the merged **critical** list to
+   `implement` as a single feedback input. Warnings and info go into the PR
+   body as `Follow-ups` and aren't fixed in this run (fixing them changes code
+   after review and forces a re-review). When `review` is run standalone, fix
+   criticals inline and list the warnings for the user.
+5. **Targeted re-check:** re-run only the lenses that reported critical
    findings, against the new diff. Don't repeat the whole set.
 
 | Merged result                                  | Action                                        |
 |------------------------------------------------|-----------------------------------------------|
-| 0 critical / 0 warning                         | Proceed to 8.3                                |
+| 0 critical (warnings → PR follow-ups)          | Proceed to 8.3                                |
 | Findings found, all fixed, targeted re-check clean | Proceed to 8.3                            |
 | Finding needs a scope change                   | Document as known limitation, ask user        |
 | Same critical survives two fix passes          | Escalate to user                              |
