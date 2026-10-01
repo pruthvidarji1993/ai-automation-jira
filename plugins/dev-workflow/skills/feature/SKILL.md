@@ -56,14 +56,101 @@ For `trivial`, the orchestrator may inline the change rather than spawning the
 `implement` skill — but only for changes that are clearly under 50 LOC, single
 file, and have no external surface change.
 
+## Parallelism model
+
+Stages stay in order and gates stay blocking. Work *inside* and *between*
+stages **may** fan out to multiple agents, but only when the work is
+independent **and** the Fan-out decision below says it's worth the tokens. The
+table lists where fan-out is *allowed*, not where it's required. Inline is the
+default.
+
+| Where (allowed, not required) | What may run in parallel                                                               | Who writes?                     |
+|-------------------------------|----------------------------------------------------------------------------------------|---------------------------------|
+| Stage 1 (Intake)            | *Optional* background **conventions scan** agent while intake resolves the ticket     | Nobody (read-only)              |
+| Stage 2 (Research)          | Up to 4 `Explore` agents, one per *applicable* research track (see `research` skill)                   | Nobody (read-only)              |
+| Stage 6 (Implement)         | One agent per **lane** from the plan's `### Parallel lanes` (disjoint file sets)      | Each lane only its own files    |
+| GATE 2 (while human reviews)| Background **speculative QA**: lint + typecheck + existing test suite                 | Nobody (read-only)              |
+| Stages 7 + 8                | `test` and `review` run concurrently; review lenses run as parallel agents            | `test` only (review is findings-only) |
+| Stage 9 (Ship)              | Lint / typecheck / tests run concurrently; self-review agent alongside QA             | Nobody until the fix pass       |
+
+### Fan-out decision (run this BEFORE every spawn — default is inline)
+
+Every sub-agent costs tokens: each one re-reads context, files, and
+instructions from scratch. So sub-agents are for **complex, high-effort work
+only**. Simple and routine tasks are always done inline, whatever the stage.
+Models are not changed for cost reasons. Each agent keeps its normal model.
+
+**Step 1: rate the task's complexity** from the intake/research/plan outputs:
+
+| Complexity | Typical signals                                                                                   | Sub-agents?                         |
+|------------|---------------------------------------------------------------------------------------------------|-------------------------------------|
+| Low        | `trivial`/`small`; single module; ≤ 3 files; copy/config/doc/style change; RCA points at 1–2 lines | **Never.** Everything inline        |
+| Medium     | `medium` size but routine: one feature area, known pattern, no async or cross-team surface         | **Rarely.** Only for a fresh-context reviewer, or a step that really is heavy |
+| High       | `large`, or `medium` with high risk; many modules/repos; async/background flows; API contract with another team; > 300 LOC plan; data migration; slow test suite | **Yes**, where step 2 passes |
+
+**Step 2 (High, or a heavy step in a Medium task):** before each fan-out, check:
+
+| # | Question                                                                                   | If "no" →                    |
+|---|--------------------------------------------------------------------------------------------|------------------------------|
+| 1 | Is the work really split into **≥ 2 independent chunks** (separate tracks, disjoint files, separate lenses)? | Inline              |
+| 2 | Is each chunk **substantial**: more than ~5 files to read, ~30 LOC to write, or a slow command (> ~60 s)? | Inline or merge chunks |
+| 3 | Is the parallel time saved larger than the merge cost (re-reading and reconciling the agent outputs)? | Inline          |
+
+- **All three "yes"** → fan out, but spawn **only the chunks that apply** to this task (e.g. no async-lifecycle track for a pure UI change, no types lens if no types were added).
+- **Any "no"** → do the work inline in the main context, or with one combined agent when a fresh context is required (the implementer must never review its own medium+ code).
+- **Record the decision** in one line in working notes, e.g. `complexity: high — fan-out: research → 2 tracks (A, B); C/D n/a`, or `complexity: low — fan-out: none (2 files, ~40 LOC)`. The Stage 10 report shows these lines.
+
+When unsure between two complexity levels, pick the lower one and stay inline.
+Starting an agent later is cheap; tokens already spent are not.
+
+### Rules for every fan-out
+
+1. **Spawn in one message.** All agents in a fan-out are separate `Agent` tool
+   calls inside a *single* assistant message so they actually run concurrently.
+   Spawning them one per turn is sequential and defeats the purpose.
+2. **Read-only fans out freely; writers need disjoint files.** Any number of
+   read-only agents may run at once. Agents that edit code may only run in
+   parallel when their file sets do not overlap (enforced by the plan's lanes).
+3. **No agent touches git state.** Sub-agents must not run `git checkout`,
+   `stash`, `reset`, `commit`, `add`, or branch operations. Only the
+   orchestrator (and `ship`) changes git state.
+4. **Self-contained prompts.** Every agent prompt restates its inputs (paths,
+   AC, plan excerpt, output format). Agents do not see your working notes.
+5. **Structured returns.** Ask each agent for a fixed output block (findings
+   with `file:line`, or a status line) so results merge without re-reading.
+6. **Gates are never parallelized away.** Background work may run *while* a
+   gate is open, but nothing that depends on the gate's answer starts before
+   the human replies, and nothing writes to the working tree during a gate.
+7. **Cap the fan-out at 4 writers / 6 readers**, and always use the *fewest*
+   agents that cover the applicable chunks. More agents cost more in merging
+   and tokens than they save in wall-clock.
+8. **Low complexity never fans out**, at any stage, including the background
+   scan and speculative QA.
+9. **On agent failure, retry that one agent once, then do its work inline.**
+   One failed agent never fails the stage.
+
 ## Procedure
 
 ### Stage 1 — Intake
 Invoke the `intake` skill with `$task_description`.
+
+**Optional parallel conventions scan.** Size is not known yet, so start this
+only when the description already signals non-trivial work: a ticket ID/URL
+whose resolution takes time, multiple features/modules named, or an API or
+cross-team mention. A one-line copy/config fix doesn't get it. If you start
+it, do so in the **same message** as intake: a background `Agent`
+(`subagent_type: "Explore"`, `run_in_background: true`): "Detect language, framework, styling, state
+  management, test runner, package manager, lint/typecheck/test commands, and
+  constraints from CLAUDE.md / AGENTS.md. Cite the config file for each. Return
+  a `## Project conventions` block only."
+
 Capture into working notes: `task_type`, `size`, `summary`, `acceptance_criteria`, `success_criteria`, `cross_team_impact`.
+If `size = trivial`, ignore the conventions scan result when it arrives. Otherwise pass it to `research` as `prefetched_conventions`.
 
 ### Stage 2 — Research (skip if size = trivial)
-Invoke the `research` skill with the intake outputs.
+Invoke the `research` skill with the intake outputs (plus `prefetched_conventions`
+if the Stage 1 scan has returned). For `medium`/`large`, `research` fans out
+parallel `Explore` agents per track.
 Capture into working notes: project conventions, files to change, hypotheses, open questions.
 
 ### Stage 3 — Root Cause Analysis (skip if task_type ≠ Bug)
@@ -92,7 +179,7 @@ Do not proceed to Stage 4 until the RCA is presented. If you cannot identify the
 
 ### Stage 4 — Plan (skip if size = trivial)
 Invoke the `plan` skill with the intake + research outputs (and RCA output if a bug).
-Capture into working notes: the implementation plan, quality analysis, failure-mode table, risk level, line estimate, feature flag.
+Capture into working notes: the implementation plan, quality analysis, failure-mode table, risk level, line estimate, feature flag, parallel lanes.
 
 ### GATE 1 — Plan approval (REQUIRED, never skip)
 
@@ -176,12 +263,23 @@ options:
 Capture the chosen solution into working notes. Pass the full solution detail (approach + file changes) as `selected_solution` to the `implement` skill.
 
 ### Stage 6 — Implement
-Invoke the `implement` skill with the approved plan + research findings + selected solution as input.
-Capture into working notes: `branch`, files changed in the working tree (uncommitted — `ship` commits later), worker location (inline | worktree path).
+Invoke the `implement` skill with the approved plan (including `### Parallel lanes`) + research findings + selected solution as input.
+If the selected solution changes the file set, recompute the lanes before invoking (same rules as the `plan` skill) — never run lanes whose file sets are stale.
+Capture into working notes: `branch`, files changed in the working tree (uncommitted — `ship` commits later), execution mode (inline | parallel: N lanes).
 
 ### GATE 2 — Execution review (REQUIRED, never skip)
 
 **Post-stage protocol:** as with GATE 1, fire the AskUserQuestion in the SAME turn that delivers the implement output. Do not end the turn between implement output and the gate.
+
+**Speculative QA (only when it pays off).** Run it only for `medium`/`large`
+when lint + typecheck + tests together take more than ~60 s (or the time is
+unknown). A fast suite is cheaper to run once in Stage 7. In the same message
+that fires the gate, first spawn a background `Agent` (`run_in_background: true`) that runs the
+project's lint, typecheck, and **existing** test suite against the current
+working tree and returns pass/fail counts plus the first 10 failures with
+`file:line`. It must not edit files or add tests. Record the tree fingerprint
+it ran against: `git diff HEAD | shasum` plus `git status --porcelain | shasum`.
+The human's review time then overlaps with the slowest part of the pipeline.
 
 Render via AskUserQuestion:
 
@@ -223,19 +321,34 @@ Route:
 - **Fail — apply fixes** → ask the user for notes, then re-invoke `implement`
   with the notes. After re-implementation, re-render GATE 2 (not this sub-gate).
 
-### Stage 7 — Test
-Invoke the `test` skill. If it reports failures, route the run back to
-`implement` with the test failures as feedback (same path as "Request changes"
-above). Do not proceed to review on a red suite.
+### Stages 7 + 8 — Test ∥ Review (run concurrently)
 
-### Stage 8 — Review (skip if size = trivial)
-Invoke the `review` skill against the working branch.
-For `medium`/`large`, the `review` skill spawns its own fresh-context reviewer agent.
-Capture findings.
+For `small`, run Test then Review in order (inline is faster at that size).
+For `medium`/`large`, run them **concurrently** if the Fan-out decision passes
+(review has ≥ 3 applicable lenses, or the suite is slow). Otherwise run them in
+order:
 
-If there are any **critical** findings, treat that as a "Request changes"
-event: feed them to `implement` and re-run from Stage 6. Do not ship code with
-known criticals.
+1. **Snapshot the implementation diff:** `git diff HEAD > <scratchpad>/impl.diff`.
+   Reviewers review this snapshot, so tests added by `test` cannot race them.
+2. **In one message**, start:
+   - the `test` skill. If speculative QA finished and the fingerprint still
+     matches, pass its results as `baseline_results` so `test` skips re-running
+     the existing suite and only adds and runs new tests;
+   - the `review` skill's parallel lens fan-out against `impl.diff` (see
+     `review` §8.2). Reviewers are findings-only and never edit files.
+3. When `test` finishes, the `review` skill runs its test-coverage lens on the
+   new tests (it depends on them, so it runs after test, not in parallel).
+4. **Merge** test failures and review findings into one deduplicated list,
+   ranked critical → warning → info.
+5. **One consolidated fix pass:** if there are any test failures or **critical**
+   findings, treat it as a single "Request changes" event: feed the whole merged
+   list to `implement` once (not one loop per finding) and re-render GATE 2.
+   After the fix, re-run only the failed tests and the review lenses that
+   reported something. Do not re-run the whole fan-out.
+
+Do not proceed to ship on a red suite or with known criticals.
+
+For `trivial`, Stage 8 is skipped (as before) and Stage 7 runs inline.
 
 ### Stage 9 — Ship
 Invoke the `ship` skill with `ticket`, `branch`, `task_type`, `size`.
@@ -253,11 +366,13 @@ Feature complete.
   plan            → {N} steps, risk={low|medium|high}, ~{LOC} LOC
   GATE 1          → {decision}
   solution chosen → Solution {N}: {name}
-  implement       → {N} files changed on {branch} ({inline|worktree}, uncommitted)
-  GATE 2          → {decision}{ → manual-test: {decision}}
+  implement       → {N} files changed on {branch} ({inline|parallel: N lanes}, uncommitted)
+  GATE 2          → {decision}{ → manual-test: {decision}}{ · speculative QA: {reused|stale|n/a}}
   test            → {pass_count} passed
-  review          → {critical} critical / {warning} warning / {info} info
+  review          → {critical} critical / {warning} warning / {info} info ({N} lenses in parallel)
   ship            → {pr_url} (template: {path|"minimal"})
+  agents          → {total_spawned} spawned, {failed_fallbacks} fell back inline
+  fan-out log     → {one line per decision, incl. "none — <reason>"}
 ```
 
 ## Hard rules
@@ -266,7 +381,8 @@ Feature complete.
 - **Never invent a gate.** Only the two main gates, the solution-selection gate, and the manual-test sub-gate defined above exist.
 - **Fire the gate in the SAME turn as the sub-skill output.** This is the explicit fix for the gate-firing bug where the orchestrator ended the turn after delivering a plan/implement output and never fired the AskUserQuestion call. The post-stage protocol notes in GATE 1, Solution Options, and GATE 2 are not optional.
 - **RCA before plan for bugs.** If `task_type = Bug`, Stage 3 (RCA) must complete before Stage 4 (Plan) is invoked.
-- **Invoke skills sequentially.** Don't parallelize stages.
+- **Stages are ordered; parallelism is only where the Parallelism model says.** Stage order and gate order never change. The only stages that overlap are Test ∥ Review (medium/large), plus background read-only work during Intake and GATE 2. Don't invent new overlaps.
+- **Never let parallel writers share a file.** If two lanes or agents would edit the same file, run them in sequence.
 - **Pass concrete inputs.** When invoking a sub-skill, restate the inputs in the prompt — don't rely on the sub-skill reading your memory.
 - **Trust the sub-skill's procedure.** Don't inline its work.
 - **On rerun, give override-priority to user feedback.** When a gate routes back to `plan` or `implement`, the user's notes outrank the prior output.

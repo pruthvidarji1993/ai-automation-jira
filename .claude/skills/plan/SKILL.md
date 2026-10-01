@@ -19,7 +19,22 @@ Write the plan a human will approve. Vague plans produce vague implementations. 
    - one or two sentences describing the change,
    - the file(s) it touches (using `file:line` from research),
    - any new dependencies or APIs,
-   - the verification (test, manual check, typecheck) that proves it works.
+   - the verification (test, manual check, typecheck) that proves it works,
+   - `depends_on:` the step numbers whose output it needs (or `none`).
+
+1b. **Parallel lanes (medium/large).** Group the steps into lanes so `implement`
+    can run them as concurrent agents:
+   - **Lane 0 (foundation)** holds shared changes that other steps depend on
+     or that many steps would touch: shared types/interfaces, `package.json` /
+     lockfiles, config, barrel `index` files, DB schema/migrations. Lane 0 always
+     runs first, alone.
+   - **Lanes 1..N** are groups of steps whose **file sets are disjoint** and
+     that depend only on lane 0 (or nothing). Use research's independence hints.
+   - Two steps that touch the same file go in the **same lane**. No exceptions.
+   - Merge any lane under ~30 LOC into a neighbour. Agent overhead isn't worth it.
+   - Max 4 parallel lanes. If you'd need more, fold the smallest together.
+   - If no real split exists, write `Lanes: single (sequential)` and say why.
+   For `trivial`/`small`, write `Lanes: single (sequential) — size`.
 
 2. **Quality analysis.** Evaluate each dimension. Skip any that genuinely don't apply — but say so in one line; do not fabricate concerns.
 
@@ -58,8 +73,16 @@ Write the plan a human will approve. Vague plans produce vague implementations. 
 
 ```
 ## Plan
-1. <step> — files: <path:line> — verify: <how>
+1. <step> — files: <path:line> — verify: <how> — depends_on: <none | N>
 2. ...
+
+### Parallel lanes
+| Lane | Steps | Files (exclusive to this lane) | Runs after |
+|------|-------|--------------------------------|------------|
+| 0    | 1     | <shared types, package.json…>  | —          |
+| 1    | 2, 3  | <…>                            | lane 0     |
+| 2    | 4     | <…>                            | lane 0     |
+(or: `Lanes: single (sequential) — <reason>`)
 
 ### Quality analysis
 - **Security:** <findings | "None identified — read-only client-side only">
@@ -102,6 +125,7 @@ delivered.
 - Failure-mode table is present (or `N/A — trivial change`).
 - Line estimate is a number, not a guess.
 - A `### Risks` and `### Per-step failure modes` subsection are present.
+- `### Parallel lanes` is present. No file appears in more than one lane, and every lane's `depends_on` points only to lane 0 or nothing.
 - No placeholder language: "TBD", "etc.", "handle error appropriately".
 - The closing `## Stop — orchestrator fires GATE 1 next` block is present.
 

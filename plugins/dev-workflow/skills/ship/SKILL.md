@@ -28,6 +28,8 @@ Record the current sub-stage in your working notes after each transition: `SELF_
 | medium    | Spawn an `Agent` (fresh context) with `subagent_type: "general-purpose"` to review the branch diff. The implementer must NOT review its own code. |
 | large     | Same as medium, plus a `mosaic-local-review` or equivalent codegen-rules audit  |
 
+If the `review` stage already ran on this exact diff (same fingerprint) with a fresh-context reviewer, reuse its verdict instead of spawning another reviewer. A second review of an unchanged diff only spends tokens.
+
 Apply any blocking fixes from the review before continuing. Re-run tests if anything changed. Fixes stay in the working tree — they're committed in Step 4.
 
 ## Step 2 — QA (status: `QA`)
@@ -38,6 +40,14 @@ Run, in order:
 2. **Lint** (e.g., `npm run lint`).
 3. **Typecheck** (e.g., `npm run build` when build implies typecheck, or `tsc --noEmit`).
 4. **Tests** (e.g., `npm test`).
+
+**Run 2–4 concurrently.** Lint, typecheck, and tests are independent, so after
+deps install, start them as parallel background `Bash` commands
+(`run_in_background: true`) in one message and collect all three results.
+This costs no extra agent tokens. Skip any check whose result you can
+**reuse**: if Stage 7 / speculative QA ran it and the tree fingerprint
+(`git diff HEAD | shasum` + `git status --porcelain | shasum`) still matches,
+reuse that result instead of re-running.
 
 If anything fails: fix the code (not the test), re-run from step 1.
 
