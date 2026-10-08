@@ -1,6 +1,6 @@
 ---
 name: intake
-description: Resolve a task description (ticket ID, URL, or free-form prompt) into structured task_type, size, summary, acceptance criteria, validated success criteria, and cross-team impact. Use first when starting any new development task, or as the first step of the /feature orchestrator.
+description: Resolve a task description (ticket ID, URL, or free-form prompt) into structured task_type, size, risk, summary, acceptance criteria, validated success criteria, and cross-team impact. Use first when starting any new development task, or as the first step of the /feature orchestrator.
 ---
 
 # intake
@@ -34,11 +34,19 @@ A `task_description`: ticket ID like `ABC-123`, a URL to Jira/Linear/GitHub, or 
 
    If unsure, default to `medium`. Don't guess `trivial`.
 
-5. **Validate success criteria.** State your assumption about what "done" means in plain language, distinct from the AC list. Flag anything the description leaves implicit. The orchestrator (or user) confirms this before research begins.
+   Size counts the files and layers the change actually needs, not how hard the ticket sounds.
+
+5. **Score risk.** Size sets how much fan-out the workflow buys (lookups, review dimensions). Risk sets which model reviews and how deep. They are independent: a one-line change to a permission check is `trivial` and `high`.
+   - `normal`: UI, copy, layout, isolated logic.
+   - `high`: needs a **named trigger the change itself performs** - permissions or auth, money or contracts, data writes or deletes, a migration, a public API or schema change, a production incident.
+
+   Score on evidence. Name the trigger in one line (`Risk: high - writes to the orders table`); with no trigger it is `normal`. When the evidence is split between `normal` and `high`, take `high`. A `trivial` task that is `high` risk does **not** take the trivial shortcut - it goes through research, plan and review.
+
+6. **Validate success criteria.** State your assumption about what "done" means in plain language, distinct from the AC list. Flag anything the description leaves implicit. The orchestrator (or user) confirms this before research begins.
 
    **Anti-rationalization:** "I can infer what done means from the ticket" → NO. Surface the assumption so it can be challenged.
 
-6. **Note cross-team impact.** Name any other repos, services, teams, or external APIs the change touches. If none, write `Self-contained`.
+7. **Note cross-team impact.** Name any other repos, services, teams, or external APIs the change touches. If none, write `Self-contained`.
 
 ## Output
 
@@ -47,6 +55,7 @@ Return a structured block to the caller:
 ```
 Type:    <feature|bug|refactor|release|review>
 Size:    <trivial|small|medium|large>
+Risk:    <normal|high> - <one-line reason or named trigger>
 Summary: <one paragraph>
 
 Acceptance criteria:
@@ -65,6 +74,7 @@ Cross-team impact:
 
 - Type is one of the allowed values.
 - Size is one of the allowed values.
+- Risk is `normal` or `high`, with a one-line reason; `high` names its trigger.
 - At least one acceptance criterion is listed.
 - Success criteria block is present (not "tbd").
 - Cross-team impact block is present (may be `Self-contained`).

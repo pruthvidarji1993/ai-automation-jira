@@ -10,8 +10,8 @@
     {
       "name": "dev-workflow",
       "source": "./plugins/dev-workflow",
-      "description": "Intake through ship: skills for the full SDLC flow (debug, feature, implement, intake, plan, refactor, research, review, ship, test)",
-      "version": "1.0.0",
+      "description": "Intake through ship: skills for the full SDLC flow (debug, feature, implement, intake, plan, refactor, research, review, ship, test), plus four model-routed subagents (lead, scout, reviewer, reviewer-deep) and a protected-branch push gate",
+      "version": "1.1.0",
       "displayName": "Dev Workflow Skills",
       "tags": ["workflow", "sdlc", "skills"],
       "category": "Workflow"

@@ -6,7 +6,7 @@ description: Master orchestrator for end-to-end feature development. Takes a tas
 # /feature — Master Orchestrator Skill
 
 You are the orchestrator. Your job is to drive a feature from a task
-description to a reviewed PR by invoking the sub-skills in `.claude/skills/`
+description to a reviewed PR by invoking the sub-skills
 in the right order, pausing at the two human gates, and reporting at the end.
 
 You do **not** write code yourself. You delegate to the sub-skills. You **do**
@@ -22,7 +22,7 @@ description before starting.
 
 ## Sub-skills you will invoke
 
-All live under `.claude/skills/`:
+They are skills of this plugin (or live under `.claude/skills/` when copied into a project):
 
 | Order | Skill / Step              | Why                                                                      |
 |-------|---------------------------|--------------------------------------------------------------------------|
@@ -41,18 +41,34 @@ All live under `.claude/skills/`:
 Invoke each via the Skill tool with the skill name as the `skill` argument.
 Pass concrete inputs in the `args` field — never say "use prior context".
 
-## Size-based routing
+## Subagents
 
-`intake` classifies the task; use the size to decide which stages run.
+The workflow ships four subagents so each step runs on the model its work needs. Skills in the main conversation are not model-pinned (switching models mid-conversation re-reads the whole context at full price); only subagents get their own model.
+
+| Agent           | Model / effort  | Does                                                         | Used by                  |
+|-----------------|-----------------|--------------------------------------------------------------|--------------------------|
+| `lead`          | Opus / high     | root cause on a bug; verifies every review finding           | Stage 3, `review`        |
+| `scout`         | Sonnet / low    | one narrow read-only lookup, 10 lines back                   | `research`               |
+| `reviewer`      | Sonnet / medium | one review dimension, normal risk                            | `review`, `ship`         |
+| `reviewer-deep` | Opus / high     | one review dimension, high risk                              | `review`, `ship`         |
+
+Agent names are written bare (`scout`). Installed as a plugin they appear as `dev-workflow:scout`; pass whichever name your agent list shows.
+
+Non-negotiable, whatever the seat or token budget: the plan, a bug's root cause and the final check of every review finding run on Opus; `risk: high` work never drops to a cheaper model; all gates stay. A new model release changes nothing here - agents use the `opus` / `sonnet` aliases.
+
+## Size and Risk routing
+
+`intake` scores both. Size decides which stages run. Risk decides which model reviews, and a `high` risk **never takes the trivial path**: treat it as at least `small`.
 
 | Size      | Stages run                                                                             | Gates fired               |
 |-----------|----------------------------------------------------------------------------------------|---------------------------|
-| trivial   | intake → implement → ship                                                              | none                      |
+| trivial   | intake → implement → ship (`risk: normal` only)                                        | none                      |
+| trivial + `risk: high` | intake → research → plan → solutions → implement → test → review → ship   | GATE 1, GATE 2, solutions |
 | small     | intake → research → [RCA if bug] → plan → solutions → implement → test → ship         | GATE 1, GATE 2, solutions |
 | medium    | All 10 stages                                                                          | GATE 1, GATE 2, solutions |
 | large     | All 10 stages; plan must propose a PR split if >500 LOC                               | GATE 1, GATE 2, solutions |
 
-For `trivial`, the orchestrator may inline the change rather than spawning the
+For `trivial` with `risk: normal`, the orchestrator may inline the change rather than spawning the
 `implement` skill — but only for changes that are clearly under 50 LOC, single
 file, and have no external surface change.
 
@@ -60,7 +76,7 @@ file, and have no external surface change.
 
 ### Stage 1 — Intake
 Invoke the `intake` skill with `$task_description`.
-Capture into working notes: `task_type`, `size`, `summary`, `acceptance_criteria`, `success_criteria`, `cross_team_impact`.
+Capture into working notes: `task_type`, `size`, `risk`, `summary`, `acceptance_criteria`, `success_criteria`, `cross_team_impact`. Pass `size` and `risk` to every later skill.
 
 ### Stage 2 — Research (skip if size = trivial)
 Invoke the `research` skill with the intake outputs.
@@ -70,7 +86,7 @@ Capture into working notes: project conventions, files to change, hypotheses, op
 
 **When:** `task_type = Bug` (as set by `intake`). Skip entirely for tasks, features, chores.
 
-Perform inline without spawning a sub-skill:
+Root cause runs on Opus. For `medium`/`large` bugs, or any bug with `risk: high`, dispatch the `lead` agent with the intake output, the research findings and the steps below, and use its RCA. For a `small` `normal`-risk bug, perform it inline. Either way, follow these steps:
 
 1. **Classify the ticket.** Re-read the intake output. If `task_type` is not `Bug`, print `[RCA skipped — task type: {task_type}]` and move to Stage 4.
 2. **Trace the data flow** from API / state source → business logic → UI, using the file:line evidence from research. Identify the exact layer where the behaviour diverges from expected.
@@ -228,9 +244,9 @@ Invoke the `test` skill. If it reports failures, route the run back to
 `implement` with the test failures as feedback (same path as "Request changes"
 above). Do not proceed to review on a red suite.
 
-### Stage 8 — Review (skip if size = trivial)
-Invoke the `review` skill against the working branch.
-For `medium`/`large`, the `review` skill spawns its own fresh-context reviewer agent.
+### Stage 8 — Review (skip if size = trivial and risk = normal)
+Invoke the `review` skill against the working branch, passing `size` and `risk`.
+For `medium`/`large`, the `review` skill spawns fresh-context `reviewer` / `reviewer-deep` agents and has `lead` verify every finding.
 Capture findings.
 
 If there are any **critical** findings, treat that as a "Request changes"
@@ -258,6 +274,7 @@ Feature complete.
   test            → {pass_count} passed
   review          → {critical} critical / {warning} warning / {info} info
   ship            → {pr_url} (template: {path|"minimal"})
+  done when       → {ticked}/{total} lines ticked
 ```
 
 ## Hard rules
@@ -276,7 +293,12 @@ Feature complete.
 - If a sub-skill reports a blocker it can't resolve, stop and surface the blocker to the user. Don't paper over it.
 - If GATE 1 is rejected, exit cleanly with a summary.
 - If GATE 2 → "Request changes" or sub-gate → "Fail" recurs more than 3 times in a row, pause and ask the user whether to keep iterating or stop.
-- If `review` returns NO-GO twice in a row on the same critical, escalate to the user before another implement loop.
+- If `review` returns NO-GO twice in a row on the same critical, escalate to the user before another implement loop. Two review rounds is the cap; do not loop a third time without the user.
+- A failed check gets one diagnosed fix, then escalate. Do not revert working steps to start over.
+
+## Done means
+
+The plan ends with a `Done when` checklist. The run is finished only when every line is ticked with command output as evidence - not when the stages have all run. If a line cannot be ticked, say which one and why, and stop at that point rather than reporting success.
 
 ## Composition note
 

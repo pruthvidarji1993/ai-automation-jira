@@ -25,7 +25,7 @@ Record the current sub-stage in your working notes after each transition: `SELF_
 |-----------|---------------------------------------------------------------------------------|
 | trivial   | Eyeball the diff (`git diff origin/<target>` — includes uncommitted changes)    |
 | small     | Eyeball + invoke the `review` skill once on the local diff                      |
-| medium    | Spawn an `Agent` (fresh context) with `subagent_type: "general-purpose"` to review the branch diff. The implementer must NOT review its own code. |
+| medium    | Spawn an `Agent` (fresh context) with `subagent_type: "reviewer"` (`"reviewer-deep"` when intake `risk` is `high`) to review the branch diff. Installed as a plugin the names are `dev-workflow:reviewer` / `dev-workflow:reviewer-deep`. The implementer must NOT review its own code. |
 | large     | Same as medium, plus a `mosaic-local-review` or equivalent codegen-rules audit  |
 
 Apply any blocking fixes from the review before continuing. Re-run tests if anything changed. Fixes stay in the working tree — they're committed in Step 4.

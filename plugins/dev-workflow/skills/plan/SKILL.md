@@ -49,7 +49,9 @@ Write the plan a human will approve. Vague plans produce vague implementations. 
 
 7. **Per-step failure modes.** For each implementation step, name at least one way it can go wrong and how the implementation should detect it.
 
-8. **If `feedback` is set on rerun:**
+8. **Done when.** End the plan with a checklist of measurable end states. Each line is one observable result plus the command or check that proves it (`npm run lint` exits 0, the new test fails before the change and passes after, the endpoint returns 403 for a non-admin). Cover every acceptance criterion from intake. "Works as expected" is not a line. A run is finished only when every box is ticked with output as evidence.
+
+9. **If `feedback` is set on rerun:**
    - Reproduce the previous plan in a collapsed `### Previous attempt` block.
    - Restate the user feedback verbatim under `### Feedback`.
    - Write the new plan under `### Revised plan`.
@@ -85,6 +87,10 @@ Write the plan a human will approve. Vague plans produce vague implementations. 
 ### Per-step failure modes
 - Step N: <symptom> → <detection>
 
+### Done when
+- [ ] <measurable end state> - proof: <command or check that shows it>
+- [ ] <next end state> - proof: <command or check>
+
 ---
 
 ## Stop — orchestrator fires GATE 1 next
@@ -102,6 +108,7 @@ delivered.
 - Failure-mode table is present (or `N/A — trivial change`).
 - Line estimate is a number, not a guess.
 - A `### Risks` and `### Per-step failure modes` subsection are present.
+- A `### Done when` checklist is present, every line has a proof, and every acceptance criterion is covered.
 - No placeholder language: "TBD", "etc.", "handle error appropriately".
 - The closing `## Stop — orchestrator fires GATE 1 next` block is present.
 

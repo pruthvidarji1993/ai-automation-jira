@@ -83,6 +83,10 @@ The 10 workflow skills are also packaged as the **`dev-workflow`** Claude Code p
 | [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) | Declares the `ai-automation-jira-marketplace` marketplace and the plugins it offers |
 | [plugins/dev-workflow/.claude-plugin/plugin.json](plugins/dev-workflow/.claude-plugin/plugin.json) | Plugin manifest for `dev-workflow` |
 | [plugins/dev-workflow/skills/](plugins/dev-workflow/skills/) | The skills shipped in the plugin |
+| [plugins/dev-workflow/agents/](plugins/dev-workflow/agents/) | Four model-routed subagents: `lead`, `scout`, `reviewer`, `reviewer-deep` |
+| [plugins/dev-workflow/hooks/](plugins/dev-workflow/hooks/) | `PreToolUse` push gate that blocks direct pushes to `main` / `master` / `develop` |
+
+Size and Risk scoring, which model runs which step, the push-gate config and the usage-limit fallbacks are documented in [docs/AGENTIC_WORKFLOW.md](docs/AGENTIC_WORKFLOW.md).
 
 #### First-time setup
 
@@ -109,6 +113,11 @@ Whenever the workflow is updated in this repo:
    claude plugin update dev-workflow@ai-automation-jira-marketplace
    ```
 3. Restart Claude to load the new version.
+
+**Updating is all a project has to do.** The agents and the push gate ship inside the plugin, so steps 1-3 above bring everything in; there is nothing to copy and no settings to edit. Two things to know after updating to v1.1.0:
+
+- **Direct pushes to `main`, `master` and `develop` from a Claude session are blocked** by default. Feature-branch pushes and PRs are unaffected. To allow an owner, add `.claude/push-gate.conf` (see [docs/AGENTIC_WORKFLOW.md](docs/AGENTIC_WORKFLOW.md#protected-branch-push-gate)).
+- A plugin cannot set your default model. To get Opus in plan mode and Sonnet elsewhere, add `{ "model": "opusplan" }` to the project's `.claude/settings.json`.
 
 > 💡 Plugin skills are namespaced by the plugin name, so they may appear as `/dev-workflow:feature`, `/dev-workflow:intake`, etc. Type `/` in Claude to see the exact names available.
 

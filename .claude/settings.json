@@ -1,0 +1,16 @@
+{
+  "model": "opusplan",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|NotebookEdit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/plugins/dev-workflow/hooks/restrict-protected-push.mjs"
+          }
+        ]
+      }
+    ]
+  }
+}

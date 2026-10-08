@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "workflow:sync": "node scripts/sync-workflow.mjs",
+    "workflow:check": "node scripts/sync-workflow.mjs --check",
+    "workflow:test": "node plugins/dev-workflow/hooks/restrict-protected-push.mjs --selftest"
   },
   "dependencies": {
     "next": "16.2.6",
