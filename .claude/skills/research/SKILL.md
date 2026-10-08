@@ -9,7 +9,7 @@ Read the code before writing the plan. Evidence over conclusions.
 
 ## Inputs
 
-- Intake output: `task_type`, `size`, `summary`, `acceptance_criteria`.
+- Intake output: `task_type`, `size`, `risk`, `summary`, `acceptance_criteria`. A missing `risk` means `high` - score up, never down.
 - Optional: explicit hypotheses to validate.
 
 ## Depth by size
@@ -20,6 +20,25 @@ Read the code before writing the plan. Evidence over conclusions.
 | `small`   | Steps 1–3 + Step 5 happy-path only                       |
 | `medium`  | All steps; full verification                             |
 | `large`   | All steps; full verification; cross-repo if applicable   |
+
+## Parallel lookups
+
+Step 2 is serial because each search depends on the last. The cross-cutting checks below do not depend on each other, so dispatch them together in **one message, one `Agent` call per layer** (`subagent_type: "scout"`, read-only, `omitClaudeMd`). Paste any project rules that matter into each prompt; scouts do not load `CLAUDE.md`. Every lookup returns 10 lines or fewer with `file:line` evidence.
+
+Agent names are written bare (`scout`). Installed as a plugin they appear as `dev-workflow:scout`; pass whichever name your agent list shows.
+
+| Size      | Dispatch                                                              |
+|-----------|-----------------------------------------------------------------------|
+| `trivial` | none                                                                  |
+| `small`   | none - search inline                                                  |
+| `medium`  | only the 1-3 layers the task plausibly touches                        |
+| `large`   | every layer below, plus the contract check when an endpoint is in play |
+
+`risk: high` always adds the **auth / permissions** lookup, whatever the size.
+
+Layers: **data fetching and cache** (how data is loaded, cached, invalidated) · **auth / permissions** (who may do this, where it is enforced) · **config and flags** (env, feature flags, defaults) · **shared components and utilities** (what already exists to reuse) · **API contract** (the other side of the call: request shape, errors, status codes).
+
+Root-cause judgment is not delegated to a scout. You make the call from their evidence.
 
 ## Procedure
 

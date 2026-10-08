@@ -14,7 +14,7 @@ Sharp, actionable review without writing code. Evidence-based: every finding inc
   - `<branch>` — diff against `main` (or configured base)
   - `<PR#>` — fetched via `gh pr view <#> --json files,additions,deletions` + `gh pr diff <#>`
 - Optional: `task_type` (tunes severity — bugfixes get harsher review of regression coverage).
-- Optional: `size` (drives reviewer isolation, below).
+- Optional: `size` and `risk` from intake (drive reviewer isolation and which reviewer runs, below). A missing `risk` means `high`.
 
 ## Reviewer isolation
 
@@ -22,10 +22,24 @@ Sharp, actionable review without writing code. Evidence-based: every finding inc
 |-----------|----------------------------------------------------------------------------------|
 | trivial   | Inline (the orchestrator)                                                        |
 | small     | Inline                                                                           |
-| medium    | **Fresh-context Agent.** Spawn with `subagent_type: "general-purpose"` and pass the diff + this skill's procedure. The implementer must NOT review its own code. |
-| large     | Same as medium                                                                   |
+| medium    | **Fresh-context Agent.** Spawn one reviewer per dimension the diff touches (typically 3-5), all in one message. The implementer must NOT review its own code. |
+| large     | Same, for every dimension the diff touches. Never pad to a count.               |
+
+Which reviewer, by `risk` (quality is never traded for tokens on high risk):
+
+| Risk     | `subagent_type`                                                             |
+|----------|-----------------------------------------------------------------------------|
+| `normal` | `reviewer` (Sonnet, medium effort)                                           |
+| `high`   | `reviewer-deep` (Opus, high effort) for every dimension                      |
+| either   | a change to auth or permissions, or a new write/delete path, always gets `reviewer-deep` |
+
+Agent names are written bare (`scout`). Installed as a plugin they appear as `dev-workflow:scout`; pass whichever name your agent list shows.
+
+Dimensions: correctness · error handling · data and state · conventions and reuse · tests · types · readability · security and permissions.
 
 For agent-spawned reviews, the prompt must include: the full diff, the AC from intake, the plan, the file:line evidence requirement, and a strict instruction "do not write code — produce findings only."
+
+**Verify every finding before it is reported.** Hand the combined reviewer findings to the `lead` agent (Opus). For each finding it opens the file, confirms the line says what the finding claims, and constructs the concrete failure - the input or state that produces the wrong output. A finding it cannot make fail is a suspicion: marked as one, or dropped. Reviewers are cheap and fast; this check is why the lead runs on Opus.
 
 ## Procedure
 
@@ -43,7 +57,7 @@ Run these checks inline before spawning any agents:
 
 **Run these review tools sequentially. Fix ALL issues from a tool before running the next.**
 
-Spawn each agent with `model: "claude-opus-4-8"` explicitly — do not inherit the session model.
+These tools run in their own agents on the Opus alias (`model: "opus"`) — do not inherit the session model, and never hard-code a full model id, so nothing needs editing when a model ships.
 
 #### Step 1: General Code Review (`/pr-review-toolkit:review-pr code`)
 
@@ -149,6 +163,7 @@ If any step in this procedure fails:
 2. Re-run the failed step (and all subsequent steps).
 3. Only proceed to `ship` when ALL checks pass.
 4. If blocked on a check that requires scope expansion — stop and ask the user before continuing.
+5. Two rounds is the cap. If the second review round still returns critical findings, stop and escalate to the user instead of looping.
 
 ## Output
 
@@ -177,7 +192,7 @@ If any step in this procedure fails:
 ## Verification
 
 - Manual checklist (8.1) completed before spawning any agents.
-- Automated review pipeline (8.2) ran all applicable steps with Opus model.
+- Automated review pipeline (8.2) ran all applicable steps on the Opus alias.
 - Every finding in 8.3 has `file:line`, a quoted line, an issue, and a fix.
 - The verdict matches the critical count (`GO` iff zero criticals).
 - Plan's failure-mode table cross-check has been performed (note "none applicable" if no failure-mode table existed).

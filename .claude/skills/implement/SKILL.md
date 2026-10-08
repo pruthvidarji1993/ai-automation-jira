@@ -103,6 +103,7 @@ Blockers:      <none | description>
 - Every plan step is either complete or has a reported blocker.
 - No `WIP`, `fixup`, or unresolved merge markers in the diff.
 - `git diff` shows no introduced `@ts-ignore`, `as any`, or `eslint-disable` without justification.
+- Every line of the plan's `Done when` checklist that can be checked at this stage is ticked, with the command output as evidence. Lines that need test or review are left for those stages.
 
 ## Failure modes
 

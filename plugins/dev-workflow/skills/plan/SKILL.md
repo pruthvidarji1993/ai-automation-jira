@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Produce an implementation plan with file-level changes, quality analysis (security/perf/reusability/readability/testability/cross-team), failure-mode table, risk assessment, line estimate, and feature flag. Use after intake + research, or as step 3 of /feature.
+description: Produce an implementation plan with file-level changes, quality analysis (security/perf/reusability/readability/testability/cross-team), failure-mode table, change-impact assessment, line estimate, and feature flag. Use after intake + research, or as step 3 of /feature.
 ---
 
 # plan
@@ -9,7 +9,7 @@ Write the plan a human will approve. Vague plans produce vague implementations. 
 
 ## Inputs
 
-- Intake output: task type, size, summary, AC, validated success criteria, cross-team impact.
+- Intake output: task type, size, **risk** (the routing score: `normal` or `high`), summary, AC, validated success criteria, cross-team impact.
 - Research output: project conventions, files to change, hypotheses, open questions.
 - Optional: previous plan + user feedback (for reruns after a "Modify" gate decision). When present, treat feedback as override-priority guidance.
 
@@ -45,11 +45,13 @@ Write the plan a human will approve. Vague plans produce vague implementations. 
 
 5. **Feature flag.** Name the flag if the change is gated, or write `N/A` with a reason.
 
-6. **Surface risk.** Call out data migrations, public-API shape changes, shared infra, cross-cutting refactors. Pick `low | medium | high` and justify in one sentence.
+6. **Assess change impact.** Call out data migrations, public-API shape changes, shared infra, cross-cutting refactors. Pick `low | medium | high` and justify in one sentence. This rates how disruptive the change is. It is **not** the intake `risk`, which decides which reviewer runs; never use one to overwrite the other.
 
 7. **Per-step failure modes.** For each implementation step, name at least one way it can go wrong and how the implementation should detect it.
 
-8. **If `feedback` is set on rerun:**
+8. **Done when.** End the plan with a checklist of measurable end states. Each line is one observable result plus the command or check that proves it (`npm run lint` exits 0, the new test fails before the change and passes after, the endpoint returns 403 for a non-admin). Cover every acceptance criterion from intake. "Works as expected" is not a line. A run is finished only when every box is ticked with output as evidence.
+
+9. **If `feedback` is set on rerun:**
    - Reproduce the previous plan in a collapsed `### Previous attempt` block.
    - Restate the user feedback verbatim under `### Feedback`.
    - Write the new plan under `### Revised plan`.
@@ -58,6 +60,8 @@ Write the plan a human will approve. Vague plans produce vague implementations. 
 
 ```
 ## Plan
+Routing risk (from intake): <normal|high> - unchanged by this plan.
+
 1. <step> — files: <path:line> — verify: <how>
 2. ...
 
@@ -79,11 +83,15 @@ Write the plan a human will approve. Vague plans produce vague implementations. 
 ### Feature flag
 - <name | N/A — reason>
 
-### Risks
-- <risk> (low|medium|high) — <one-sentence justification>
+### Change impact
+- <impact> (low|medium|high) — <one-sentence justification>
 
 ### Per-step failure modes
 - Step N: <symptom> → <detection>
+
+### Done when
+- [ ] <measurable end state> - proof: <command or check that shows it>
+- [ ] <next end state> - proof: <command or check>
 
 ---
 
@@ -101,7 +109,8 @@ delivered.
 - Quality analysis covers all 6 dimensions (with "N/A — reason" if skipped).
 - Failure-mode table is present (or `N/A — trivial change`).
 - Line estimate is a number, not a guess.
-- A `### Risks` and `### Per-step failure modes` subsection are present.
+- A `### Change impact` and `### Per-step failure modes` subsection are present, and the routing risk line matches intake.
+- A `### Done when` checklist is present, every line has a proof, and every acceptance criterion is covered.
 - No placeholder language: "TBD", "etc.", "handle error appropriately".
 - The closing `## Stop — orchestrator fires GATE 1 next` block is present.
 

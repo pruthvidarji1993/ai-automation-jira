@@ -1,8 +1,8 @@
 {
   "name": "dev-workflow",
   "displayName": "Dev Workflow Skills",
-  "version": "1.0.0",
-  "description": "Intake through ship: skills for the full SDLC flow (debug, feature, implement, intake, plan, refactor, research, review, ship, test)",
+  "version": "1.1.0",
+  "description": "Intake through ship: skills for the full SDLC flow (debug, feature, implement, intake, plan, refactor, research, review, ship, test), plus four model-routed subagents (lead, scout, reviewer, reviewer-deep) and a protected-branch push gate",
   "author": {
     "name": "pruthvidarji1993",
     "email": "pruthvid@zignuts.com"
