@@ -47,14 +47,14 @@ The workflow ships four subagents so each step runs on the model its work needs.
 
 | Agent           | Model / effort  | Does                                                         | Used by                  |
 |-----------------|-----------------|--------------------------------------------------------------|--------------------------|
-| `lead`          | Opus / high     | root cause on a bug; verifies every review finding           | Stage 3, `review`        |
+| `lead`          | Opus / high     | root cause on a bug; drafts the plan; verifies every review finding | Stages 3-4, `review` |
 | `scout`         | Sonnet / low    | one narrow read-only lookup, 10 lines back                   | `research`               |
 | `reviewer`      | Sonnet / medium | one review dimension, normal risk                            | `review`, `ship`         |
 | `reviewer-deep` | Opus / high     | one review dimension, high risk                              | `review`, `ship`         |
 
 Agent names are written bare (`scout`). Installed as a plugin they appear as `dev-workflow:scout`; pass whichever name your agent list shows.
 
-Non-negotiable, whatever the seat or token budget: the plan, a bug's root cause and the final check of every review finding run on Opus; `risk: high` work never drops to a cheaper model; all gates stay. A new model release changes nothing here - agents use the `opus` / `sonnet` aliases.
+Non-negotiable, whatever the seat or token budget: the plan (for `medium`/`large` or `risk: high`), a bug's root cause and the final check of every review finding run on Opus because `lead` does them, so it holds even when the session model is Sonnet; `risk: high` work never drops to a cheaper model; all gates stay. A new model release changes nothing here - agents use the `opus` / `sonnet` aliases.
 
 ## Size and Risk routing
 
@@ -106,9 +106,9 @@ Offending code:
 
 Do not proceed to Stage 4 until the RCA is presented. If you cannot identify the root cause with the research evidence, surface a blocker and ask the user.
 
-### Stage 4 — Plan (skip if size = trivial)
-Invoke the `plan` skill with the intake + research outputs (and RCA output if a bug).
-Capture into working notes: the implementation plan, quality analysis, failure-mode table, risk level, line estimate, feature flag.
+### Stage 4 — Plan (skip if size = trivial and risk = normal)
+Plan quality sets the quality of everything after it, so it runs on Opus. For `medium`/`large`, or any task with `risk: high`, dispatch the `lead` agent with the intake output, the research findings (and the RCA if a bug) and an instruction to invoke the `plan` skill (`dev-workflow:plan` when installed as a plugin) and return the finished plan. For a `small` task with `risk: normal`, invoke the `plan` skill inline. Either way, render the returned plan yourself.
+Capture into working notes: the implementation plan, quality analysis, failure-mode table, change impact, line estimate, feature flag, `Done when` list.
 
 ### GATE 1 — Plan approval (REQUIRED, never skip)
 
@@ -158,7 +158,7 @@ For **each** option use this structure:
 **Cons:**
 - Drawback 1
 
-**Risk:** Low | Medium | High
+**Change impact:** Low | Medium | High
 ```
 
 After presenting all options, render a comparison matrix:
@@ -167,7 +167,7 @@ After presenting all options, render a comparison matrix:
 | Criteria                   | Solution 1 | Solution 2 | Solution 3 |
 |----------------------------|-----------|-----------|-----------|
 | Effort                     |           |           |           |
-| Risk                       |           |           |           |
+| Change impact              |           |           |           |
 | Completeness               |           |           |           |
 | Shared component impact    |           |           |           |
 | API changes needed         |           |           |           |
@@ -266,7 +266,7 @@ Feature complete.
   intake          → {task_type}, {size}
   research        → {N} files mapped, {hypothesis_count} hypotheses
   root cause      → {rca_summary | "N/A — not a bug"}
-  plan            → {N} steps, risk={low|medium|high}, ~{LOC} LOC
+  plan            → {N} steps, impact={low|medium|high}, ~{LOC} LOC (routing risk: {normal|high})
   GATE 1          → {decision}
   solution chosen → Solution {N}: {name}
   implement       → {N} files changed on {branch} ({inline|worktree}, uncommitted)

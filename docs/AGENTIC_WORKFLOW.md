@@ -11,7 +11,7 @@ in one place, so a skill never names a model.
 
 | Agent           | Model / effort  | Tools     | Job                                                          |
 | --------------- | --------------- | --------- | ------------------------------------------------------------ |
-| `lead`          | Opus / high     | all       | Root cause on a bug; verifies every review finding           |
+| `lead`          | Opus / high     | all       | Root cause on a bug; drafts the plan; verifies every review finding |
 | `scout`         | Sonnet / low    | read-only | One narrow lookup, 10 lines back, `file:line` evidence       |
 | `reviewer`      | Sonnet / medium | read-only | One review dimension on `risk: normal`                       |
 | `reviewer-deep` | Opus / high     | read-only | One review dimension on `risk: high`                         |
@@ -55,8 +55,10 @@ goes through research, plan and review.
   Only subagents, which start fresh, get their own model.
 - **Aliases only.** Agents use `opus` / `sonnet`. Never write a full model id
   into a skill or agent; nothing needs editing when a model ships.
-- **Recommended default: `opusplan`** (Opus in plan mode, Sonnet elsewhere). A
-  plugin cannot set a user's default model, so set it per project:
+- **Optional: `opusplan`** (Opus in plan mode, Sonnet elsewhere). The workflow
+  does not depend on it: agents pin their own models, so without it the
+  main-conversation steps simply use the session's default model. A plugin
+  cannot set a user's default model, so set it per project if you want it:
 
   ```json
   { "model": "opusplan" }
@@ -67,8 +69,9 @@ goes through research, plan and review.
 Non-negotiable, whatever the seat or token budget:
 
 1. All gates stay.
-2. The plan, a bug's root cause and the final check of every review finding run
-   on Opus.
+2. The plan (on `medium`/`large` or `risk: high`), a bug's root cause and the
+   final check of every review finding run on Opus, because `lead` does them.
+   This holds whatever model the session uses.
 3. `risk: high` work never drops to a cheaper model.
 4. The objective checks (typecheck, lint, tests, build) are model-independent.
 5. A missing Size or Risk is scored up, never down.
@@ -109,18 +112,22 @@ closed on anything unparseable. It also blocks setting `user.email` to an
 allowlisted address, `push --no-verify`, `core.hooksPath` changes, writes to a
 protected ref through `gh api`, and edits to `.claude/push-gate.conf`.
 
-**Default behaviour:** `main`, `master` and `develop` are protected and nobody is
-allowlisted, so Claude opens a PR instead. Pushing a feature branch is never
-affected.
+**Opt-in.** The gate does nothing until a project adds `.claude/push-gate.conf`.
+Installing or updating the plugin never changes how a project pushes, so
+existing projects keep working exactly as before.
 
-To let an owner push directly, or change the branches, add
-`.claude/push-gate.conf` to the project (create it yourself in a terminal; the
+Once the file exists, the listed branches are protected and only the listed
+emails may push them directly; everyone else, and Claude, opens a PR. Pushing a
+feature branch is never affected. Create the file yourself in a terminal (the
 gate does not let a session edit it):
 
 ```
 PROTECTED_BRANCHES='main master develop'
 ALLOWED_PUSH_EMAILS='you@example.com'
 ```
+
+If a key is missing, `PROTECTED_BRANCHES` defaults to `main master develop` and
+nobody is allowlisted.
 
 It is a guardrail for the ordinary case, not a sandbox. Only server-side branch
 protection is a real boundary.

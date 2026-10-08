@@ -4,6 +4,9 @@
  * a protected branch (default: main, master, develop) directly from a Claude
  * Code session. Everyone else opens a PR.
  *
+ * OPT-IN: the gate is inert unless the project has `.claude/push-gate.conf`.
+ * Installing or updating the plugin never changes how a project pushes.
+ *
  * It resolves where a push will really land - the current branch, the
  * configured upstream, `remote.*.push` and `push.default=matching` - and treats
  * anything it cannot parse (variables, globs, shell aliases) as a possible hit.
@@ -15,9 +18,9 @@
  *   PROTECTED_BRANCHES='main master develop'
  *   ALLOWED_PUSH_EMAILS='you@example.com'
  *
- * With no file, the three default branches are protected and nobody is
- * allowlisted. There is deliberately no env-var escape hatch: a session that
- * can set env vars could switch the gate off.
+ * With the file present but a key missing, the default branches are protected
+ * and nobody is allowlisted. There is deliberately no env-var escape hatch: a
+ * session that can set env vars could switch the gate off.
  *
  * FAILURE MODEL - fail CLOSED for git pushes: if parsing or git lookups throw
  * on a command that looks like a push, it is blocked. Non-push commands are
@@ -34,7 +37,7 @@
  *   node restrict-protected-push.mjs --selftest
  */
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const PROJECT_ROOT = process.env.CLAUDE_PROJECT_DIR || process.cwd();
@@ -60,6 +63,7 @@ function loadConf() {
   return defaults;
 }
 
+const GATE_ENABLED = existsSync(join(PROJECT_ROOT, '.claude', 'push-gate.conf'));
 const conf = loadConf();
 const PROTECTED = new Set(conf.PROTECTED_BRANCHES.split(/\s+/).filter(Boolean));
 const ALLOWED_EMAILS = new Set(
@@ -400,6 +404,9 @@ const block = (title, detail) => {
   process.stderr.write(`BLOCKED: ${title}\n\n${detail}\n`);
   process.exit(2);
 };
+
+// Opt-in: no conf file means this project did not ask for a gate.
+if (!GATE_ENABLED) process.exit(0);
 
 let cmd = '';
 try {
