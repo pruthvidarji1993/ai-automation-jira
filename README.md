@@ -1,8 +1,19 @@
 # AI Workflow Setup 🚀
 
+[![CI](https://github.com/pruthvidarji1993/ai-automation-jira/actions/workflows/ci.yml/badge.svg)](https://github.com/pruthvidarji1993/ai-automation-jira/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/pruthvidarji1993/ai-automation-jira)](https://github.com/pruthvidarji1993/ai-automation-jira/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+> **Quick start (Claude Code):**
+> ```bash
+> claude plugin marketplace add pruthvidarji1993/ai-automation-jira
+> claude plugin install dev-workflow@ai-automation-jira-marketplace
+> ```
+> Restart Claude, then run `/feature <ticket>`. Details [below](#first-time-setup).
+
 An opinionated, enterprise-grade AI-assisted development workflow designed to go from **Ticket In** to **Reviewed PR Out**. 
 
-This repository contains two parallel implementations of the exact same 7-stage software engineering pipeline:
+This repository contains two parallel implementations of the exact same 9-stage software engineering pipeline:
 1. 🤖 **Claude Code**: A fully automated, agentic flow that auto-chains each stage and queries for approval inline.
 2. 💻 **GitHub Copilot Chat**: A developer-guided, semi-automated flow where you drive each stage manually with slash commands in your IDE.
 
@@ -10,11 +21,11 @@ The Next.js application in this repository acts as a sandbox for trying out thes
 
 ---
 
-## 🧭 The 10-Stage Pipeline
+## 🧭 The 9-Stage Pipeline
 
 Both clients enforce the exact same rigorous software engineering lifecycle:
 
-![alt text](public/image.png)
+![The 9-stage pipeline from Intake to Ship, with three human approval gates](public/image.png)
 
 | Stage | Name | Description |
 |-------|------|-------------|
