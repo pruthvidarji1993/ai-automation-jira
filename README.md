@@ -11,6 +11,10 @@
 > ```
 > Restart Claude, then run `/feature <ticket>`. Details [below](#first-time-setup).
 
+![Animated overview of the pipeline: Intake to Ship with two human approval gates](docs/assets/workflow-demo.gif)
+
+*Illustrative animation of the stages, not a screen recording of a live run.*
+
 An opinionated, enterprise-grade AI-assisted development workflow designed to go from **Ticket In** to **Reviewed PR Out**. 
 
 This repository contains two parallel implementations of the exact same 9-stage software engineering pipeline:
