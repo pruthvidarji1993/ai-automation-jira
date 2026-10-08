@@ -12,6 +12,8 @@ Invoke any prompt by typing its name as a slash command in Copilot Chat:
 /review 42
 ```
 
+> ⚠️ The `.github/prompts/` folder is not in this repository yet; the links below will not resolve until the prompt files are added.
+
 Each `<name>.prompt.md` in [.github/prompts/](.github/prompts/) is self-contained — Copilot picks them up automatically when this folder is present.
 
 > Requires VS Code with prompt files enabled (`chat.promptFiles: true` in settings), or a Copilot client that supports `.github/prompts/`.
