@@ -119,6 +119,34 @@ Whenever the workflow is updated in this repo:
 - **Nothing about how you push changes.** The protected-branch push gate is opt-in: it only turns on in a project that adds `.claude/push-gate.conf` (see [docs/AGENTIC_WORKFLOW.md](docs/AGENTIC_WORKFLOW.md#protected-branch-push-gate)).
 - **No settings are required.** Agents pin their own models. Optionally, add `{ "model": "opusplan" }` to a project's `.claude/settings.json` to get Opus in plan mode and Sonnet elsewhere; a plugin cannot set that for you.
 
+**Check you are on the new version:**
+
+```bash
+claude plugin list        # dev-workflow should show Version: 1.1.0
+```
+
+#### What's new in v1.1.0
+
+| What you will notice | Why it matters |
+| :--- | :--- |
+| `intake` prints a `Risk:` line (`normal` or `high`) with a one-line reason | Tasks touching auth, money, deletes or migrations always get the full workflow and a deeper review, even when the change is tiny |
+| Bug root cause runs in a separate Opus agent (`dev-workflow:lead`) | More careful diagnosis; the main session's context stays small |
+| On medium/large or high-risk tasks the plan is drafted by `lead` too | Plan quality does not depend on which model your session uses |
+| `research` sends small read-only lookups to a cheaper model (medium/large tasks) | Lower cost for the same evidence |
+| `review` and `ship` use fresh-context reviewers; high risk gets the Opus reviewer. `lead` then re-checks every finding against the real code | Fewer false alarms, and the author never reviews their own code |
+| Every plan ends with a `Done when` checklist with proof per line | A run is finished when every line is ticked with evidence, not when every stage has run |
+| Optional push gate (off unless `.claude/push-gate.conf` exists) | Teams that want it can block direct pushes to `main` / `develop` from Claude |
+
+Unchanged: the slash commands, the stage order and all three human gates.
+
+Full detail, including the Size/Risk table and usage-limit fallbacks: [docs/AGENTIC_WORKFLOW.md](docs/AGENTIC_WORKFLOW.md).
+
+#### If something looks off
+
+- Run `claude plugin list` to confirm the version, then restart Claude. Plugin updates only apply after a restart.
+- Remove the plugin with `claude plugin uninstall dev-workflow@ai-automation-jira-marketplace`, and reinstall with the first-time setup steps above.
+- Tell the maintainer which skill and stage it happened in.
+
 > 💡 Plugin skills are namespaced by the plugin name, so they may appear as `/dev-workflow:feature`, `/dev-workflow:intake`, etc. Type `/` in Claude to see the exact names available.
 
 ---
