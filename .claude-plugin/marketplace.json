@@ -5,7 +5,7 @@
     "email": "pruthvid@zignuts.com"
   },
   "description": "Plugin marketplace for the ai-automation-jira repo's dev workflow skills",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "plugins": [
     {
       "name": "dev-workflow",

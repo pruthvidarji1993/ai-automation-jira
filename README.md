@@ -20,7 +20,7 @@ Both clients enforce the exact same rigorous software engineering lifecycle:
 |-------|------|-------------|
 | 1 | **Intake** | Resolve the ticket, extract acceptance criteria, classify size and task type (Bug / Feature / Chore) |
 | 2 | **Research** | Map the codebase, detect conventions, collect `file:line` evidence |
-| 3 | **Root Cause Analysis** *(Bugs only)* | Trace the data flow, pinpoint the exact failing lines, present a structured RCA before planning |
+| 3 | **Root Cause Analysis** *(Bugs only)* | The `lead` agent (Opus, separate context) traces the data flow, pinpoints the exact failing lines and presents a structured RCA before planning |
 | 4 | **Plan** | Write a step-by-step implementation plan with quality analysis, failure-mode table, and risk rating |
 | — | **GATE 1: Approve Plan** | Human reviews and approves the plan before any code is written |
 | 5 | **Solution Options** | Present 2–4 concrete solutions with pros/cons and a comparison matrix; human selects one |
@@ -169,7 +169,7 @@ To run the full end-to-end flow with a single command, use the `/feature` orches
 Claude will:
 1. Run `/intake` to clarify goals and classify the task type (Bug / Feature / Chore).
 2. Run `/research` to find code locations and collect evidence.
-3. Run **Root Cause Analysis** inline if the ticket is a Bug — traces data flow and pinpoints failing lines before any planning.
+3. Run **Root Cause Analysis** in the `lead` agent (Opus, separate context) if the ticket is a Bug — traces data flow and pinpoints failing lines before any planning.
 4. Run `/plan` and present it to you.
 5. **Pause (GATE 1)**: Wait for you to approve or request changes to the plan.
 6. Present **2–4 Solution Options** with a comparison matrix. Wait for you to select one.
@@ -209,7 +209,7 @@ If you want to run a single specific stage instead of the full pipeline, type th
    *(Ensure you have this configured in your user or workspace settings. VS Code will automatically detect all `.prompt.md` files in `.github/prompts/`.)*
 
 ### 2. Loaded Prompts Registry
-This repository comes pre-loaded with **10 custom prompt files** located under [.github/prompts/](.github/prompts/). When you open Copilot Chat in VS Code inside this workspace, each `.prompt.md` file is registered as a custom slash command automatically.
+> ⚠️ **Not included yet:** the `.github/prompts/` folder is not part of this repository, so there are no Copilot prompt files to load here. The Claude Code skills above are the supported path. To use Copilot, port the skills into `.github/prompts/<name>.prompt.md` files; once they exist, VS Code registers each as a slash command automatically.
 
 ### 3. Running the Guided Flow (Manual Sequence)
 Unlike Claude, Copilot does **not** auto-chain prompts. Running `/feature` will execute the intake step and stop. To run the full development lifecycle in Copilot, execute these commands **in sequence within the same chat session**:
@@ -228,7 +228,7 @@ Unlike Claude, Copilot does **not** auto-chain prompts. Running `/feature` will 
 /ship            # 7. Package commits, final QA, and compose the PR description
 ```
 
-You can trigger any of these prompts individually as needed. The template source files are fully accessible under [.github/prompts/](.github/prompts/).
+You can trigger any of these prompts individually as needed. The flow below assumes the prompt files from the note above have been added.
 
 ---
 
