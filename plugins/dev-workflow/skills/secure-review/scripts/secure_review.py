@@ -156,6 +156,8 @@ def git_ignored(root, files):
 
 
 def in_scope(f, changed, deps_changed):
+    if f.get("source") == "gitleaks" and "Committed in" in f.get("detail", ""):
+        return True  # found in a commit on this branch; the file may since be deleted
     return f["file"] in changed if f.get("file") else deps_changed
 
 
@@ -536,37 +538,48 @@ def scan_semgrep(root, stacks, changed, tools):
     return found
 
 
-def scan_gitleaks(root, mode, changed, is_git, tools, raw):
+def scan_gitleaks(root, mode, changed, is_git, tools, raw, base=None):
     try:
         exe = ensure_gitleaks()
     except Exception as e:
         tools.append(tool("gitleaks", ".", "failed", str(e)))
         return []
     out = raw / "gitleaks.json"
-    base = ["--redact", "--no-banner", "--report-format", "json", "--report-path", out, "--exit-code", "0"]
-    src = root
-    if changed is not None:
-        if not changed:
+    args = lambda o: ["--redact", "--no-banner", "--report-format", "json", "--report-path", o, "--exit-code", "0"]
+
+    def scan(cmd, report):
+        run(cmd, timeout=3600)
+        return json.loads(report.read_text() or "[]") if report.exists() else None
+
+    found, notes = [], []
+    if changed is None:
+        cmd, note = ([exe, "git", root, *args(out)], "full git history") if is_git else \
+                    ([exe, "dir", root, *args(out)], "working tree (not a git repo)")
+        data = scan(cmd, out)
+        if data is None:
+            tools.append(tool("gitleaks", ".", "failed", "no report written"))
+            return []
+        found, notes = norm_gitleaks(data, root), [note]
+    else:
+        if changed:
+            # Copy only changed files so the scan covers uncommitted work without walking the whole tree.
+            src = Path(tempfile.mkdtemp(dir=raw))
+            for f in changed:
+                (src / f).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(root / f, src / f)
+            data = scan([exe, "dir", src, *args(out)], out)
+            found += norm_gitleaks(data or [], src)
+            shutil.rmtree(src, ignore_errors=True)
+            notes.append("changed files incl. uncommitted")
+        if is_git and base:  # a key committed then deleted on this branch is still live
+            hist = raw / "gitleaks-branch.json"
+            data = scan([exe, "git", root, *args(hist), "--log-opts", f"{base}..HEAD"], hist)
+            found += norm_gitleaks(data or [], root)
+            notes.append("commits since base")
+        if not notes:
             tools.append(tool("gitleaks", ".", "skipped", "no changed files"))
             return []
-        # Copy only changed files so the scan covers uncommitted work without walking the whole tree.
-        src = Path(tempfile.mkdtemp(dir=raw))
-        for f in changed:
-            (src / f).parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(root / f, src / f)
-        cmd, note = [exe, "dir", src, *base], "changed files incl. uncommitted"
-    elif is_git:
-        cmd, note = [exe, "git", root, *base], "full git history"
-    else:
-        cmd, note = [exe, "dir", root, *base], "working tree (not a git repo)"
-    _, _, err = run(cmd, timeout=3600)
-    if not out.exists():
-        tools.append(tool("gitleaks", ".", "failed", tail(err)))
-        return []
-    found = norm_gitleaks(json.loads(out.read_text() or "[]"), src)
-    if src != root:
-        shutil.rmtree(src, ignore_errors=True)
-    tools.append(tool("gitleaks", ".", "ran", note, len(found)))
+    tools.append(tool("gitleaks", ".", "ran", " + ".join(notes), len(found)))
     return found
 
 
@@ -601,7 +614,7 @@ def cmd_scan(a):
     if mode != "deps":
         if ensure_py_tools(tools):
             found += scan_semgrep(root, stacks, changed, tools)
-        found += scan_gitleaks(root, mode, changed, is_git, tools, raw)
+        found += scan_gitleaks(root, mode, changed, is_git, tools, raw, base)
     found = [f for f in found if not re.match(r"(.*/)?\.(claude|secure-review)/", f.get("file") or "")]
     if is_git:
         ignored = git_ignored(root, {f["file"] for f in found if f.get("file")})
@@ -848,6 +861,7 @@ def cmd_selftest(_):
 
     changed = {"src/a.ts"}
     assert in_scope({"file": "src/a.ts"}, changed, False) and not in_scope({"file": "src/b.ts"}, changed, False)
+    assert in_scope({"file": "gone.js", "source": "gitleaks", "detail": "Committed in abc12345."}, changed, False)
     assert not in_scope({"file": None}, changed, False) and in_scope({"file": None}, changed, True)
     assert MANIFESTS.search("apps/web/package.json") and not MANIFESTS.search("src/package.ts")
 

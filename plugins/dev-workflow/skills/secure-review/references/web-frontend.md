@@ -50,3 +50,25 @@
 - Role or permission decided only on the client (cookie or JWT payload read
   in the browser) with no server check.
 - Logout that clears client state but not the server session.
+
+## CSRF, uploads, routes and responses (Next.js and SPAs)
+
+- Server actions and route handlers that mutate with cookie auth: confirm the
+  `Origin` check applies (`serverActions.allowedOrigins` too wide) and custom
+  `POST` route handlers verify `Origin` or a token; `GET` handlers that change
+  state.
+- Uploads: the `accept` attribute is UX only; the server must allowlist exact
+  MIME types and check magic bytes and size. Prefer short-lived presigned URLs
+  with content-type and size conditions; never store under `public/` (Next
+  serves it) or use the client file name as the path.
+- Route inventory: list every `app/**/route.ts`, `page.tsx` data fetch and
+  `middleware`/`proxy` `matcher`; the matcher must cover `/api` and every
+  private segment, and each handler still checks auth itself (middleware is
+  not the only guard).
+- API versioning: the frontend calling unversioned or deprecated endpoints;
+  client code assuming an old response shape.
+- Response handling: trust no field from the response for authorization;
+  status/error strings compared as literals instead of shared constants;
+  errors shown to the user verbatim from the backend.
+- N+1 in server components: `await` inside `map`/loops that call the DB or an
+  internal API per item (use one batched query or `Promise.all` with a limit).

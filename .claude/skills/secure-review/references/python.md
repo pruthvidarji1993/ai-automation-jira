@@ -55,3 +55,50 @@
   Django's hashers).
 - `tempfile.mktemp`, world-writable files, predictable temp paths.
 - Logging of request bodies, headers (`Authorization`) or personal data.
+
+## Mass assignment and wildcard queries
+
+- `Model(**request.data)`, `Model.objects.filter(...).update(**request.POST)`,
+  `setattr` loops over request keys, `ModelForm`/`ModelSerializer` with
+  `fields = '__all__'` or `exclude = [...]`; Pydantic/FastAPI models that
+  reuse the DB model so the client can set `is_admin`. Use explicit field
+  lists and separate input/output schemas.
+- `.objects.all()` / `session.query(Model)` returned whole to the client; use
+  `.only()`/`.values()`/response models. See `database.md`.
+
+## CSRF
+
+- Django `@csrf_exempt`, `CsrfViewMiddleware` removed, DRF
+  `SessionAuthentication` with exempted views, `CSRF_TRUSTED_ORIGINS` too wide.
+  Flask/FastAPI cookie auth without Flask-WTF `CSRFProtect` or an `Origin`
+  check.
+
+## File upload
+
+- Django `FileField`/`ImageField` without validators; trusting
+  `UploadedFile.content_type` or the extension (sniff the content, e.g.
+  `python-magic`, and allowlist exact types, never `*/*`). `MEDIA_ROOT` inside
+  or served from the static path; `upload_to` using the client file name
+  (use `uuid` names); no `DATA_UPLOAD_MAX_MEMORY_SIZE`/`FILE_UPLOAD_MAX_MEMORY_SIZE`.
+- Flask `request.files[...].save(os.path.join(dir, file.filename))` without
+  `secure_filename` and a type check; FastAPI `UploadFile` read fully into
+  memory with no size cap.
+
+## Routes, versioning and responses
+
+- Route inventory: read every `urls.py` / `include()` / Flask blueprint /
+  FastAPI `APIRouter`; each has auth and permission dependencies; no leftover
+  debug/admin routes (`/admin` exposed, `django-debug-toolbar`, `/docs` and
+  `/openapi.json` open in production when the API is private).
+- API versioning: unversioned or several versions mounted with different
+  security (`/api/v1` lacking the permission class `/api/v2` has).
+- Response contract: status codes/messages as scattered literals instead of
+  `status.HTTP_*` and shared constants; error shape differing per view;
+  `200` with an error body; exception text returned to the client.
+
+## N+1
+
+- Related objects accessed in a loop or serializer without
+  `select_related`/`prefetch_related` (Django), `joinedload`/`selectinload`
+  (SQLAlchemy); a `SerializerMethodField` that queries per row. See
+  `database.md`.
