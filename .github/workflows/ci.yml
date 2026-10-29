@@ -18,4 +18,8 @@ jobs:
       - run: npm run lint
       - run: npm run workflow:check
       - run: npm run workflow:test
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - run: npm run secure-review:test
       - run: npm run build

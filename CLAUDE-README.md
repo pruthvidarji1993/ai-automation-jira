@@ -42,6 +42,14 @@ Use these directly when you want a single stage instead of the full flow.
 | [`/review`](.claude/skills/review/SKILL.md) | Structured diff/PR review with critical / warning / info findings |
 | [`/ship`](.claude/skills/ship/SKILL.md) | Self-review → QA → PR open → address review comments |
 
+## Standalone skills
+
+Not part of `/feature`; run them yourself when you want them. Claude never starts these on its own.
+
+| Skill | What it does |
+|-------|--------------|
+| [`/secure-review`](.claude/skills/secure-review/SKILL.md) | Security review for Next.js, React, Node, Python and PHP projects: pinned scanners plus a verified AI review, with an OWASP-mapped HTML report for clients. `diff` (default), `full` or `deps` |
+
 ## Conventions
 
 - Skills delegate; they don't duplicate work. `/feature` calls the others — don't reinvoke a stage it already ran.
