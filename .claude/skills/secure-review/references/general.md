@@ -14,7 +14,8 @@ Red flags. Each needs a concrete exploit before it is a finding.
 - Admin or internal routes reachable without a role check; debug endpoints left
   enabled.
 - Mass assignment: request body spread into a create/update (`role`,
-  `isAdmin`, `ownerId`, `price` settable by the client).
+  `isAdmin`, `ownerId`, `price` settable by the client). Includes wildcard
+  reads/writes (`SELECT *`, `update(body)`): see `database.md` and the stack file.
 
 ## Authentication and session (A07)
 
@@ -33,6 +34,14 @@ Red flags. Each needs a concrete exploit before it is a finding.
 - Credentials, API keys, private keys in source, fixtures that ship, Docker
   images, CI files, or committed `.env` files. A secret in git history is live
   until rotated.
+- Git history: run the secret scan over every commit (`full`) or every commit
+  on the branch (`diff`). A key added then deleted is still exposed; report it
+  as "rotate", not "remove". Also check old commits for deleted `.env`, key
+  files, dumps and `*.pem`.
+- Test code: real keys, tokens, production URLs, customer data or DB dumps in
+  tests, fixtures, snapshots, mocks, Postman collections, `.env.test` and CI
+  variables. Tests should use obvious fakes (`test_key_123`) or env vars; a
+  string that matches a live provider format is a finding until proven fake.
 - Debug mode, verbose stack traces or framework error pages in production
   config.
 - CORS `*` (or a reflected origin) together with credentials.
@@ -48,7 +57,8 @@ Red flags. Each needs a concrete exploit before it is a finding.
   includes webhooks, link previews, image proxies, PDF renderers.
 - Redirects to a user-supplied URL (open redirect), especially after login.
 - State-changing requests authenticated by cookie with no CSRF defence
-  (`SameSite=Lax/Strict` or a token).
+  (`SameSite=Lax/Strict` or a token); CSRF protection disabled globally or
+  exempted per route. Stack files show where each framework configures it.
 - Regexes with nested quantifiers on user input (ReDoS).
 
 ## Data protection and privacy
@@ -56,9 +66,23 @@ Red flags. Each needs a concrete exploit before it is a finding.
 - Personal data (emails, phones, tokens, payment data, health data) written to
   logs, analytics, error trackers or URLs.
 - Raw backend errors, SQL errors or stack traces returned to the client.
-- File uploads without type/size limits, stored under a guessable public path,
-  or served with a content type the browser will execute (HTML/SVG).
+- File uploads: type not checked against an exact MIME allowlist (never `*/*`
+  or `image/*`) and by content, not just the client header or extension; no size
+  limit; client file name used; stored under a public or guessable path
+  instead of private storage; served with a content type the browser will
+  execute (HTML/SVG). Stack files list the framework specifics.
 - Exports and reports that include more fields than the caller may see.
+
+## Routes, API versioning and response contract
+
+- Inventory every route file/controller and confirm each route has
+  authentication and authorization; look for forgotten debug, test or admin
+  routes and catch-all handlers.
+- Versioning: public API with no version, or an old version still mounted
+  without the fixes (auth, validation, rate limits) the new one has.
+- Response contract: one shared shape and shared constants for status codes
+  and messages; no `200` with an error body; no error text that reveals
+  whether a record exists; no raw exceptions returned.
 
 ## Business logic (A04) - scanners never find these
 

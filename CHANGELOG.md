@@ -5,6 +5,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+- `secure-review`: new `references/database.md` (wildcard `SELECT *`/update mass assignment, migration quality: FKs, indexes, NULLs, N+1) and per-stack checks for mass assignment, CSRF, file upload (exact MIME allowlist, storage path), route inventory, API versioning and response constants
+- `secure-review`: secrets in test code and fixtures; `diff` mode now also scans every commit since the base branch for secrets
+
+### Changed
+- `secure-review` stack checklists narrowed to the stacks the skill covers (Laravel for PHP, no Koa/Hono)
+
 ## [1.2.0] - 2026-10-29
 
 ### Added

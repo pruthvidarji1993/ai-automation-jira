@@ -1,6 +1,6 @@
 ---
 name: secure-review
-description: Standalone security review for any repository. Detects the stack (Next.js, React, Node API, Python with Django/Flask/FastAPI, PHP, Capacitor, Electron, React Native, Docker), installs pinned scanners on first use, runs them, adds an AI review of what scanners cannot see (access control, IDOR, session, SSRF, CSRF, injection, platform risks), verifies every finding, and writes a developer findings list plus a self-contained HTML client report mapped to OWASP Top 10. Run manually with /secure-review [diff|full|deps] [--base <ref>].
+description: Standalone security review for any repository. Detects the stack (Next.js, React, Node API, Python with Django/Flask/FastAPI, PHP, Capacitor, Electron, React Native, Docker), installs pinned scanners on first use, runs them, adds an AI review of what scanners cannot see (access control, IDOR, mass assignment, session, SSRF, CSRF, file upload, injection, migrations, N+1, API versioning, platform risks), verifies every finding, and writes a developer findings list plus a self-contained HTML client report mapped to OWASP Top 10. Run manually with /secure-review [diff|full|deps] [--base <ref>].
 argument-hint: '[diff|full|deps] [--base <ref>]'
 disable-model-invocation: true
 ---
@@ -14,7 +14,7 @@ Arguments: `$ARGUMENTS`
 
 | Mode             | Scope                                          | Use                         |
 | ---------------- | ---------------------------------------------- | --------------------------- |
-| `diff` (default) | Files changed vs base + uncommitted, deps if a manifest changed | Before opening a PR |
+| `diff` (default) | Files changed vs base + uncommitted, secrets in commits since base, deps if a manifest changed | Before opening a PR |
 | `full`           | Whole repo, secrets across full git history    | Audit, client deliverable   |
 | `deps`           | Dependencies, licenses, supply chain only      | After a dependency change   |
 
@@ -62,6 +62,7 @@ file):
 | Stack in `scan.json`                     | Checklist                        |
 | ---------------------------------------- | -------------------------------- |
 | always                                   | `references/general.md`          |
+| the project has queries, models or migrations (any ORM or SQL) | `references/database.md` |
 | `react`, `next`                          | `references/web-frontend.md`     |
 | `node-api`, `next` (route handlers, server actions) | `references/node-api.md` |
 | `python`, `django`, `flask`, `fastapi`   | `references/python.md`           |
@@ -72,6 +73,9 @@ No stack detected, or a stack not listed: still apply `general.md` - semgrep's
 OWASP rules and gitleaks run on any language. Say in `limitations` which
 stack-specific checks were not available.
 
+- Also read the project's route files, migrations and test/fixture folders
+  (secrets in tests, route inventory, migration quality, N+1) - scanners do not
+  cover them, and they are not always in the diff for `full`.
 - **`diff`**: read every changed file in full (not just hunks), and follow
   changed server code to its callers and the data it touches. Apply the
   loaded checklists.
