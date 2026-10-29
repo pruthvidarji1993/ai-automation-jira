@@ -79,7 +79,7 @@ stack-specific checks were not available.
 - **`diff`**: read every changed file in full (not just hunks), and follow
   changed server code to its callers and the data it touches. Apply the
   loaded checklists.
-- **`full`**: fan out read-only subagents in parallel, one per loaded
+- **`full`**: on a small repo (roughly under 50 source files) review it yourself in one pass; otherwise fan out read-only subagents in parallel, one per loaded
   checklist (split `general.md` from the stack lists). Give each the checklist
   path, the project paths from `scan.json`, and this contract: return at most
   15 findings, each with `file:line`, the concrete input or state that exploits
@@ -117,7 +117,7 @@ with it.
     "scope": "What was reviewed: mode, stacks, projects.",
     "limitations": "Tools that did not run and why, areas not reviewed, anything assumed."
   },
-  "verdicts": { "F003": { "status": "confirmed", "severity": "high", "note": "Reachable from POST /api/upload without auth" } },
+  "verdicts": { "F003": { "status": "confirmed", "severity": "high", "note": "Reachable from POST /api/upload without auth", "title": "optional: plain-English title", "fix": "optional: concrete fix" } },
   "rules": { "semgrep:<check_id>": { "status": "false-positive", "note": "Only used on constant strings" } },
   "added": [
     { "rule": "idor", "severity": "critical", "title": "Any user can read any order",
@@ -128,6 +128,7 @@ with it.
 }
 ```
 
+A verdict may set `title` and `fix` when the scanner's raw wording is unclear or has no fix.
 `status` is `confirmed`, `suspicion` or `false-positive`; findings with no
 verdict show as `unverified`. Rule keys are `<source>:<rule>` exactly as in
 `scan.json`. `added` holds the AI review's verified findings; `owasp` is the

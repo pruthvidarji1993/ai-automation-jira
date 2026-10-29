@@ -5,13 +5,13 @@
     "email": "pruthvid@zignuts.com"
   },
   "description": "Plugin marketplace for the ai-automation-jira repo's dev workflow skills",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "plugins": [
     {
       "name": "dev-workflow",
       "source": "./plugins/dev-workflow",
       "description": "Intake through ship: skills for the full SDLC flow (debug, feature, implement, intake, plan, refactor, research, review, ship, test), the standalone secure-review security review, plus four model-routed subagents (lead, scout, reviewer, reviewer-deep) and a protected-branch push gate",
-      "version": "1.3.0",
+      "version": "1.3.1",
       "displayName": "Dev Workflow Skills",
       "tags": ["workflow", "sdlc", "skills"],
       "category": "Workflow"

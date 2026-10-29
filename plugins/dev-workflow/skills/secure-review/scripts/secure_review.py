@@ -656,6 +656,7 @@ def merge(scan, review):
         f = {**f, "status": v.get("status", f.get("status", "unverified")), "note": v.get("note", f.get("note", ""))}
         if v.get("severity") in SEVERITIES:
             f["severity"] = v["severity"]
+        f.update({k: v[k] for k in ("title", "fix") if v.get(k)})  # readable wording for raw scanner output
         findings.append(f)
     findings.sort(key=lambda f: (SEVERITIES.index(f["severity"]), f.get("file") or "", f.get("line") or 0))
     return findings
@@ -869,11 +870,12 @@ def cmd_selftest(_):
                      "stacks": [], "outOfScope": 0}, "tools": [],
             "findings": [{**finding("x", "r", "high", "<script>alert(1)</script>"), "id": "F001"},
                          {**finding("x", "r2", "low", "noise"), "id": "F002"}]}
-    review = {"verdicts": {"F001": {"status": "confirmed"}}, "rules": {"x:r2": {"status": "false-positive"}},
+    review = {"verdicts": {"F001": {"status": "confirmed", "title": "<script>alert(2)</script>", "fix": "Do X"}}, "rules": {"x:r2": {"status": "false-positive"}},
               "added": [finding("ai", "idor", "critical", "IDOR on /api/orders/[id]", "a.ts", 9, owasp="A01")]}
     merged = merge(scan, review)
     assert [(m["id"], m["status"]) for m in merged] == [
         ("A001", "confirmed"), ("F001", "confirmed"), ("F002", "false-positive")], merged
+    assert (merged[1]["title"], merged[1]["fix"]) == ("<script>alert(2)</script>", "Do X"), merged[1]
     page = render(scan, review, merged)
     assert "<script>alert" not in page and "&lt;script&gt;" in page and "Overall risk: Critical" in page
 
