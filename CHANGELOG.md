@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-29
+
 ### Added
 - `secure-review`: new `references/database.md` (wildcard `SELECT *`/update mass assignment, migration quality: FKs, indexes, NULLs, N+1) and per-stack checks for mass assignment, CSRF, file upload (exact MIME allowlist, storage path), route inventory, API versioning and response constants
 - `secure-review`: secrets in test code and fixtures; `diff` mode now also scans every commit since the base branch for secrets
@@ -50,6 +52,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Added
 - Initial Jira automation flow and the Next.js sandbox app
 
-[Unreleased]: https://github.com/pruthvidarji1993/ai-automation-jira/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/pruthvidarji1993/ai-automation-jira/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/pruthvidarji1993/ai-automation-jira/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/pruthvidarji1993/ai-automation-jira/releases/tag/v1.2.0
 [1.1.0]: https://github.com/pruthvidarji1993/ai-automation-jira/releases/tag/v1.1.0
