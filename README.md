@@ -137,7 +137,7 @@ Whenever the workflow is updated in this repo:
 **Check you are on the new version:**
 
 ```bash
-claude plugin list        # dev-workflow should show Version: 1.3.0
+claude plugin list        # dev-workflow should show Version: 1.3.1
 ```
 
 #### What's new in v1.3.0
