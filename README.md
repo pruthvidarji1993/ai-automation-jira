@@ -137,8 +137,16 @@ Whenever the workflow is updated in this repo:
 **Check you are on the new version:**
 
 ```bash
-claude plugin list        # dev-workflow should show Version: 1.1.0
+claude plugin list        # dev-workflow should show Version: 1.2.0
 ```
+
+#### What's new in v1.2.0
+
+| What you will notice | Why it matters |
+| :--- | :--- |
+| A new `/secure-review` command | A standalone security review with a client-ready HTML report. It never runs as part of the workflow; see [Secure Review](#-secure-review-standalone-security-review) |
+
+Unchanged: every workflow skill, agent and gate from v1.1.0.
 
 #### What's new in v1.1.0
 
@@ -168,7 +176,7 @@ Full detail, including the Size/Risk table and usage-limit fallbacks: [docs/AGEN
 
 ### 3. Loaded Skills Registry
 
-This repository comes pre-loaded with **10 custom AI skills** located under [.claude/skills/](.claude/skills/). 
+This repository comes pre-loaded with **11 custom AI skills** (10 workflow stages plus the standalone `secure-review`) located under [.claude/skills/](.claude/skills/). 
 
 When you launch `claude` in your terminal or IDE inside this workspace, Claude automatically scans the `.claude/skills/` directory and registers each folder as a custom slash command.
 
@@ -208,6 +216,63 @@ If you want to run a single specific stage instead of the full pipeline, type th
 | **`/test`** | [.claude/skills/test](.claude/skills/test/SKILL.md) | Generates robust unit/integration tests and verifies test coverage. |
 | **`/review`** | [.claude/skills/review](.claude/skills/review/SKILL.md) | Multi-step review: manual checklist → automated pipeline (Opus) → AC check → summary report. |
 | **`/ship`** | [.claude/skills/ship](.claude/skills/ship/SKILL.md) | Final QA, self-review, commits changes, and opens a PR. |
+| **`/secure-review`** | [.claude/skills/secure-review](.claude/skills/secure-review/SKILL.md) | Standalone security review (not part of `/feature`): scanners + verified AI review, OWASP-mapped HTML report. See [Secure Review](#-secure-review-standalone-security-review). |
+
+---
+
+## 🔒 Secure Review (standalone security review)
+
+`/secure-review` is a standalone skill. It never runs as part of `/feature` or `/review`, and Claude will not start it on its own: you type the command when you want it.
+
+It detects the project's stack, runs pinned open-source scanners, then has Claude review what scanners cannot see: access control and IDOR, auth and session handling, SSRF, CSRF, business logic, and mobile and desktop risks. Every finding is checked against the code before it is reported. You get a developer list in chat and a self-contained HTML report you can hand to a client.
+
+### Where it comes from
+
+It ships inside the `dev-workflow` plugin from **v1.2.0**, so projects that already use the plugin get it with their usual plugin update; nothing new to install. In this repo it lives at [.claude/skills/secure-review/](.claude/skills/secure-review/). To use it without the plugin, copy that folder into a project's `.claude/skills/`.
+
+Plugin skills can appear namespaced (`/dev-workflow:secure-review`); type `/secure` in Claude to see the exact name.
+
+### Run
+
+```bash
+/secure-review                          # diff (default): changed + uncommitted files vs the base branch
+/secure-review full                     # whole repo, secrets across all git history: audits, client deliverables
+/secure-review deps                     # dependencies, licenses and supply chain only
+/secure-review diff --base origin/main  # pick the base branch yourself
+```
+
+### What runs per stack
+
+| Stack | Scanners | AI checklist |
+| :--- | :--- | :--- |
+| Next.js, React | [web-secure-verification](https://www.npmjs.com/package/web-secure-verification), semgrep (`p/nextjs`, `p/react`) | web-frontend, node-api (server actions, route handlers) |
+| Node API (Express, NestJS, Fastify, Koa, Hono) | web-secure-verification, semgrep (`p/nodejs`, `p/expressjs`) | node-api |
+| Python (Django, Flask, FastAPI) | bandit, pip-audit, semgrep (`p/python` + framework) | python |
+| PHP (Laravel, Symfony, WordPress) | osv-scanner (`composer.lock`), semgrep (`p/php`) | php |
+| Capacitor, Electron, React Native, native iOS | web-secure-verification, semgrep, osv-scanner (CocoaPods) | mobile-desktop |
+| Every project | semgrep `p/owasp-top-ten`, gitleaks (secrets, incl. git history in `full`) | general: access control, auth, secrets, injection, SSRF/CSRF, business logic, caching, GraphQL/WebSockets, privacy and compliance, AI/LLM features, CI and containers |
+
+### What you get
+
+- **In chat:** overall risk and one line per confirmed finding: `[SEVERITY] file:line - issue - fix`.
+- **`.secure-review/<timestamp>/report.html`:** one self-contained file (light and dark mode, prints to PDF) with an executive summary written for clients, a remediation roadmap, OWASP Top 10 (2021) mapping, findings, compliance notes, and which checks ran or were skipped.
+- Reports stay out of git through `.git/info/exclude`; the project's `.gitignore` is not touched. Secret values are redacted from every report.
+
+### Requirements
+
+| Need | Why |
+| :--- | :--- |
+| Python 3.10+ | Runs the scanner script; bandit, pip-audit and semgrep need it. On older Python those tools are skipped with a note. macOS ships 3.9: `brew install python`. |
+| Node.js 18+ and installed `node_modules` | JS/TS projects. The skill never installs a project's dependencies itself, because install scripts can run code. |
+| git | `diff` mode and the history secret scan |
+| Internet on first run | Tools install once into `~/.cache/secure-review` (override with `SECURE_REVIEW_HOME`): pip-audit, bandit and semgrep in a private venv; gitleaks and osv-scanner as checksum-verified binaries, with a Homebrew fallback when GitHub downloads are blocked. Nothing is added to the project's `package.json`, requirements or lockfiles. |
+
+### Limits
+
+- No review catches everything. Across eight test projects (one per stack) it found 48 of 50 planted issues on Sonnet; use `full` on Opus for client audits.
+- Tested on macOS; the self-check also runs on Linux in CI. Windows is untested.
+- Use `diff` for everyday work. On a large repo, `full` takes longer and costs more tokens because every finding is verified.
+
 
 ---
 

@@ -5,7 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-29
+
 ### Added
+- `secure-review` skill: a standalone security review (never chained into `/feature` and never started by Claude on its own). Detects the stack (Next.js, React, Node APIs, Python with Django/Flask/FastAPI, PHP, Capacitor, Electron, React Native, Docker), installs pinned scanners on first use (web-secure-verification, semgrep, gitleaks, bandit, pip-audit, osv-scanner), adds an AI review of what scanners miss, verifies every finding, and writes a self-contained, OWASP-mapped HTML report for clients with secret values redacted
+- `npm run secure-review:test` and a CI step running the skill's self-check on Python 3.10
 - MIT license, CI workflow, PR and issue templates, `CONTRIBUTING.md`, `SECURITY.md` and this changelog
 - Animated pipeline overview and social preview image
 
@@ -39,5 +43,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Added
 - Initial Jira automation flow and the Next.js sandbox app
 
-[Unreleased]: https://github.com/pruthvidarji1993/ai-automation-jira/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/pruthvidarji1993/ai-automation-jira/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/pruthvidarji1993/ai-automation-jira/releases/tag/v1.2.0
 [1.1.0]: https://github.com/pruthvidarji1993/ai-automation-jira/releases/tag/v1.1.0

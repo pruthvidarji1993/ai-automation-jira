@@ -4,7 +4,7 @@
 
 | Version | Supported |
 | ------- | --------- |
-| 1.1.x (latest `dev-workflow` plugin) | ✅ |
+| 1.2.x (latest `dev-workflow` plugin) | ✅ |
 | Older | ❌ |
 
 ## Reporting a vulnerability
@@ -26,6 +26,7 @@ You can expect an acknowledgement within a few days. This is a solo-maintained p
 - The push gate (`plugins/dev-workflow/hooks/restrict-protected-push.mjs`) being bypassable
 - Skills, agents or prompts that could leak secrets (for example Jira or API tokens) or run unintended commands
 - Unsafe default permissions in `.claude/settings.json`
+- The `secure-review` skill: its tool installer (`plugins/dev-workflow/skills/secure-review/scripts/secure_review.py`) installing an unverified binary, or a secret value reaching its report
 
 ## Out of scope
 
