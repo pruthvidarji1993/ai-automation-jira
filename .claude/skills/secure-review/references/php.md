@@ -23,12 +23,6 @@ Scanners here: semgrep `p/php` and osv-scanner for `composer.lock`. Apply
 - `{!! $var !!}` unescaped Blade output of user content.
 - CSRF middleware exceptions (`$except`) covering state-changing routes.
 
-## WordPress
-
-- AJAX/REST handlers missing `current_user_can` and nonce checks.
-- `$wpdb->query` / `get_results` without `$wpdb->prepare`.
-- Output without `esc_html` / `esc_attr` / `wp_kses`.
-
 ## Mass assignment and wildcard queries
 
 - `Model::create($request->all())`, `->update($request->all())`,
