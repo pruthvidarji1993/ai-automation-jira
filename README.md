@@ -137,7 +137,7 @@ Whenever the workflow is updated in this repo:
 **Check you are on the new version:**
 
 ```bash
-claude plugin list        # dev-workflow should show Version: 1.3.4
+claude plugin list        # dev-workflow should show Version: 1.3.5
 ```
 
 #### What's new in v1.3.0
@@ -255,9 +255,11 @@ Plugin skills can appear namespaced (`/dev-workflow:secure-review`); type `/secu
 
 | Stack | Scanners | AI checklist |
 | :--- | :--- | :--- |
-| Next.js, React | [web-secure-verification](https://www.npmjs.com/package/web-secure-verification), semgrep (`p/nextjs`, `p/react`) | web-frontend, node-api (server actions, route handlers), database |
+| React (SPA) | [web-secure-verification](https://www.npmjs.com/package/web-secure-verification), semgrep (`p/react`) | react, database |
+| Next.js (also gets the React checks) | web-secure-verification, semgrep (`p/nextjs`, `p/react`) | nextjs, react, node-api (server actions, route handlers), database |
 | Node API (Express, NestJS, Fastify) | web-secure-verification, semgrep (`p/nodejs`, `p/expressjs`) | node-api, database |
-| Python (Django, Flask, FastAPI) | bandit, pip-audit, semgrep (`p/python` + framework) | python, database |
+| Python | bandit, pip-audit, semgrep (`p/python`) | python, database |
+| Django, Flask, FastAPI (each detected on its own) | same, plus `p/django` / `p/flask` | django, flask or fastapi (with python), database |
 | PHP (Laravel) | osv-scanner (`composer.lock`), semgrep (`p/php`) | php, database |
 | React Native, native iOS | web-secure-verification, semgrep, osv-scanner (CocoaPods) | mobile-desktop |
 | Any project with queries or migrations | (AI review only) | database: mass assignment, migration quality, N+1 |

@@ -1,4 +1,6 @@
-# Python checklist (Django, Flask, FastAPI, scripts)
+# Python checklist (plain Python, scripts, any framework)
+
+Framework-specific checks live in `django.md`, `flask.md` and `fastapi.md`.
 
 ## Injection and unsafe execution (A03, A08)
 
@@ -16,37 +18,6 @@
 - `requests` with `verify=False`; `requests.get(user_url)` without an allowlist
   (SSRF).
 
-## Django
-
-- `DEBUG = True`, `ALLOWED_HOSTS = ['*']`, or `SECRET_KEY` hardcoded in
-  committed settings.
-- `@csrf_exempt` on views that use cookie auth; `CSRF_COOKIE_SECURE`,
-  `SESSION_COOKIE_SECURE`, `SECURE_SSL_REDIRECT`, `SECURE_HSTS_SECONDS` unset
-  for production.
-- Views missing `login_required` / permission classes; DRF
-  `permission_classes = [AllowAny]` or a default of `AllowAny` in settings.
-- DRF serializers with `fields = '__all__'` on models with sensitive or
-  privileged fields (mass assignment and data exposure).
-- `get_object_or_404(Model, pk=pk)` without scoping to the user or tenant
-  (IDOR) - prefer `request.user.things.get(pk=pk)`.
-
-## Flask
-
-- `app.run(debug=True)` reachable in production (the debugger allows code
-  execution).
-- `SECRET_KEY` hardcoded or default; no CSRF protection (Flask-WTF) on forms
-  with cookie sessions.
-- Routes without `@login_required` or an equivalent check.
-
-## FastAPI
-
-- Routes missing the auth dependency (`Depends(get_current_user)`), or a router
-  included without it.
-- Pydantic models used for both input and output exposing internal fields;
-  missing `response_model` filtering.
-- `CORSMiddleware(allow_origins=["*"], allow_credentials=True)`.
-- JWT decode without `algorithms=[...]` or with `options={"verify_signature": False}`.
-
 ## General Python
 
 - `assert` used for security checks (stripped with `-O`).
@@ -56,49 +27,16 @@
 - `tempfile.mktemp`, world-writable files, predictable temp paths.
 - Logging of request bodies, headers (`Authorization`) or personal data.
 
-## Mass assignment and wildcard queries
+## Mass assignment, uploads and routes (any framework)
 
-- `Model(**request.data)`, `Model.objects.filter(...).update(**request.POST)`,
-  `setattr` loops over request keys, `ModelForm`/`ModelSerializer` with
-  `fields = '__all__'` or `exclude = [...]`; Pydantic/FastAPI models that
-  reuse the DB model so the client can set `is_admin`. Use explicit field
-  lists and separate input/output schemas.
-- `.objects.all()` / `session.query(Model)` returned whole to the client; use
-  `.only()`/`.values()`/response models. See `database.md`.
-
-## CSRF
-
-- Django `@csrf_exempt`, `CsrfViewMiddleware` removed, DRF
-  `SessionAuthentication` with exempted views, `CSRF_TRUSTED_ORIGINS` too wide.
-  Flask/FastAPI cookie auth without Flask-WTF `CSRFProtect` or an `Origin`
-  check.
-
-## File upload
-
-- Django `FileField`/`ImageField` without validators; trusting
-  `UploadedFile.content_type` or the extension (sniff the content, e.g.
-  `python-magic`, and allowlist exact types, never `*/*`). `MEDIA_ROOT` inside
-  or served from the static path; `upload_to` using the client file name
-  (use `uuid` names); no `DATA_UPLOAD_MAX_MEMORY_SIZE`/`FILE_UPLOAD_MAX_MEMORY_SIZE`.
-- Flask `request.files[...].save(os.path.join(dir, file.filename))` without
-  `secure_filename` and a type check; FastAPI `UploadFile` read fully into
-  memory with no size cap.
-
-## Routes, versioning and responses
-
-- Route inventory: read every `urls.py` / `include()` / Flask blueprint /
-  FastAPI `APIRouter`; each has auth and permission dependencies; no leftover
-  debug/admin routes (`/admin` exposed, `django-debug-toolbar`, `/docs` and
-  `/openapi.json` open in production when the API is private).
-- API versioning: unversioned or several versions mounted with different
-  security (`/api/v1` lacking the permission class `/api/v2` has).
-- Response contract: status codes/messages as scattered literals instead of
-  `status.HTTP_*` and shared constants; error shape differing per view;
-  `200` with an error body; exception text returned to the client.
-
-## N+1
-
-- Related objects accessed in a loop or serializer without
-  `select_related`/`prefetch_related` (Django), `joinedload`/`selectinload`
-  (SQLAlchemy); a `SerializerMethodField` that queries per row. See
-  `database.md`.
+- `setattr` loops or `Model(**data)` over request keys; reusing the DB model as
+  the input schema so the client can set `is_admin`. Use explicit field lists.
+  See `database.md`.
+- Uploads: trust neither the client content type nor the file name; allowlist
+  exact types by content (e.g. `python-magic`), cap the size, store outside the
+  served path under generated names.
+- Route inventory: every route has auth; no leftover debug/admin routes; the
+  response contract uses shared constants, no `200` with an error body, no
+  exception text returned to the client.
+- N+1: related rows fetched inside a loop; use eager loading
+  (`joinedload`/`selectinload`). See `database.md`.
