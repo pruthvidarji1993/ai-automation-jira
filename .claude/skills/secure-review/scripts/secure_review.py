@@ -609,7 +609,8 @@ def cmd_scan(a):
     projects = detect(root)
     stacks = set().union(*(p["stacks"] for p in projects)) if projects else set()
     if not stacks:
-        notes.append("no known stack detected - ran only the language-agnostic tools (semgrep OWASP rules, gitleaks)")
+        notes.append("no known stack detected - " + ("no dependency manifest found" if mode == "deps" else
+                     "ran only the language-agnostic tools (semgrep OWASP rules, gitleaks)"))
     tools, found = [], []
 
     def py_ready():
