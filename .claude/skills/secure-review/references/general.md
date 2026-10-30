@@ -2,7 +2,7 @@
 
 Red flags. Each needs a concrete exploit before it is a finding.
 
-## Access control (A01) - the most common real-world gap; scanners cannot see it
+## Access control (A01)
 
 - An endpoint, server action or resolver that reads or writes a record by id
   without checking the record belongs to the caller (IDOR / BOLA).
@@ -83,18 +83,6 @@ Red flags. Each needs a concrete exploit before it is a finding.
 - Response contract: one shared shape and shared constants for status codes
   and messages; no `200` with an error body; no error text that reveals
   whether a record exists; no raw exceptions returned.
-
-## Business logic (A04) - scanners never find these
-
-- Prices, totals, discounts, quantities, roles or plan limits taken from the
-  client instead of recomputed on the server.
-- Check-then-act races: double-spend of credits/coupons, duplicate refunds,
-  withdrawing twice - no transaction, row lock or idempotency key.
-- Multi-step flows (checkout, onboarding, password reset, approval) where a
-  later step can be called directly without completing the earlier ones.
-- Negative or huge numbers, zero-amount payments, currency mix-ups.
-- Payment webhooks trusted without verifying the provider signature, or order
-  marked paid from the client redirect instead of the webhook.
 
 ## Account security
 
