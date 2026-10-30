@@ -66,10 +66,14 @@ file):
 | Stack in `scan.json`                     | Checklist                        |
 | ---------------------------------------- | -------------------------------- |
 | always                                   | `references/general.md`          |
-| the project has queries, models or migrations (any ORM or SQL) | `references/database.md` |
-| `react`, `next`                          | `references/web-frontend.md`     |
-| `node-api`, `next` (route handlers, server actions) | `references/node-api.md` |
-| `python`, `django`, `flask`, `fastapi`   | `references/python.md`           |
+| the code imports an ORM or database client, runs SQL, or has models or migrations | `references/database.md` |
+| `react` (any React app, also loaded for Next.js) | `references/react.md` |
+| `next`                                   | `references/nextjs.md`           |
+| `node-api`, `next` (route handlers, server actions); a bare `node` (no server framework found) does not load it | `references/node-api.md` |
+| `python` (also loaded with any framework) | `references/python.md` |
+| `django`                                 | `references/django.md`           |
+| `flask`                                  | `references/flask.md`            |
+| `fastapi`                                | `references/fastapi.md`          |
 | `react-native`, `ios` | `references/mobile-desktop.md` |
 | `php`                                    | `references/php.md`              |
 

@@ -97,7 +97,7 @@ def detect(root):
             if deps or "workspaces" not in pkg:  # a bare workspace root: its packages are scanned on their own
                 stacks.add("node")
             if "next" in deps:
-                stacks |= {"next", "react"}
+                stacks |= {"next", "react"}  # Next.js is React: both checklists apply
             elif deps.keys() & {"react", "react-dom", "react-native"}:
                 stacks.add("react")
             if deps.keys() & {"express", "@nestjs/core", "fastify", "koa", "hono", "@hapi/hapi"}:
@@ -392,7 +392,8 @@ def norm_semgrep(data):
         sev = {"ERROR": "high", "WARNING": "medium", "INFO": "low"}.get(r.get("extra", {}).get("severity"), "medium")
         out.append(finding("semgrep", r["check_id"], sev, r["extra"].get("message", "")[:200].strip(),
                            r["path"], r["start"]["line"], r["extra"].get("message", "").strip(),
-                           r["extra"].get("fix") or "", owasp, cwe.split(":")[0] if cwe else None))
+                           "",  # extra.fix is an autofix code snippet (sometimes just "True"), not advice; the verdict supplies the fix
+                           owasp, cwe.split(":")[0] if cwe else None))
     return out
 
 
@@ -822,13 +823,18 @@ def cmd_selftest(_):
         (root / "web/package.json").write_text('{"dependencies":{"next":"15.0.0","react-native":"0.76"}}')
         (root / "api").mkdir()
         (root / "api/requirements.txt").write_text("Django==4.2\n")
+        for d, dep in (("flk", "Flask==3.0"), ("fapi", "fastapi==0.110")):
+            (root / d).mkdir()
+            (root / d / "requirements.txt").write_text(dep + "\n")
+        (root / "spa").mkdir()
+        (root / "spa/package.json").write_text('{"dependencies":{"react":"19","react-dom":"19"}}')
         (root / "node_modules/x").mkdir(parents=True)
         (root / "node_modules/x/package.json").write_text('{"dependencies":{"express":"4"}}')
         for d, f in (("cms", "composer.json"), ("web/ios", "Podfile"), ("svc", "Makefile")):
             (root / d).mkdir(exist_ok=True)
             (root / d / f).write_text("")
         got = {p["path"]: p["stacks"] for p in detect(root)}
-        assert got == {"web": ["next", "node", "react", "react-native"], "api": ["django", "python"], "cms": ["php"],
+        assert got == {"web": ["next", "node", "react", "react-native"], "spa": ["node", "react"], "flk": ["flask", "python"], "fapi": ["fastapi", "python"], "api": ["django", "python"], "cms": ["php"],
                        "web/ios": ["ios"]}, got
 
     osv = {"results": [{"source": {"path": "/r/php/composer.lock"}, "packages": [
@@ -912,6 +918,9 @@ def cmd_selftest(_):
             {"note": ["signed with '[redacted]' via POST /login"]}
     t = []
     assert guarded("x", ".", t, lambda: 1 / 0) == [] and t[0]["status"] == "failed" and "ZeroDivisionError" in t[0]["note"]
+    (sg,) = norm_semgrep({"results": [{"check_id": "r", "path": "a.py", "start": {"line": 1},
+                                       "extra": {"message": "m", "severity": "ERROR", "fix": "True"}}]})
+    assert sg["fix"] == "", sg
     print("selftest ok")
 
 
