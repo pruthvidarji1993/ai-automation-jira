@@ -8,7 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [1.3.5] - 2026-10-30
 
 ### Changed
-- `secure-review`: `web-frontend.md` split into `react.md` and `nextjs.md`, and `python.md` split into `python.md`, `django.md`, `flask.md` and `fastapi.md`; a project loads only the checklists for the frameworks it uses (Next.js also loads React, any framework also loads Python)
+- `secure-review`: semgrep findings no longer carry the autofix snippet (e.g. `True`) as their `fix`; `database.md` and `node-api.md` load triggers worded precisely; `web-frontend.md` split into `react.md` and `nextjs.md`, and `python.md` split into `python.md`, `django.md`, `flask.md` and `fastapi.md`; a project loads only the checklists for the frameworks it uses (Next.js also loads React, any framework also loads Python)
 
 ## [1.3.4] - 2026-10-30
 

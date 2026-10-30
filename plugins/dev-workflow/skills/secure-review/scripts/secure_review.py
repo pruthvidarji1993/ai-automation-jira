@@ -392,7 +392,8 @@ def norm_semgrep(data):
         sev = {"ERROR": "high", "WARNING": "medium", "INFO": "low"}.get(r.get("extra", {}).get("severity"), "medium")
         out.append(finding("semgrep", r["check_id"], sev, r["extra"].get("message", "")[:200].strip(),
                            r["path"], r["start"]["line"], r["extra"].get("message", "").strip(),
-                           r["extra"].get("fix") or "", owasp, cwe.split(":")[0] if cwe else None))
+                           "",  # extra.fix is an autofix code snippet (sometimes just "True"), not advice; the verdict supplies the fix
+                           owasp, cwe.split(":")[0] if cwe else None))
     return out
 
 
@@ -917,6 +918,9 @@ def cmd_selftest(_):
             {"note": ["signed with '[redacted]' via POST /login"]}
     t = []
     assert guarded("x", ".", t, lambda: 1 / 0) == [] and t[0]["status"] == "failed" and "ZeroDivisionError" in t[0]["note"]
+    (sg,) = norm_semgrep({"results": [{"check_id": "r", "path": "a.py", "start": {"line": 1},
+                                       "extra": {"message": "m", "severity": "ERROR", "fix": "True"}}]})
+    assert sg["fix"] == "", sg
     print("selftest ok")
 
 
