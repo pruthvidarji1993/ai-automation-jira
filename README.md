@@ -137,7 +137,7 @@ Whenever the workflow is updated in this repo:
 **Check you are on the new version:**
 
 ```bash
-claude plugin list        # dev-workflow should show Version: 1.3.3
+claude plugin list        # dev-workflow should show Version: 1.3.4
 ```
 
 #### What's new in v1.3.0
@@ -234,7 +234,7 @@ If you want to run a single specific stage instead of the full pipeline, type th
 
 `/secure-review` is a standalone skill. It never runs as part of `/feature` or `/review`, and Claude will not start it on its own: you type the command when you want it.
 
-It detects the project's stack, runs pinned open-source scanners, then has Claude review what scanners cannot see: access control and IDOR, mass assignment, auth and session handling, SSRF, CSRF, file uploads, migrations and N+1 queries, API versioning, business logic, and mobile and desktop risks. Every finding is checked against the code before it is reported. You get a developer list in chat and a self-contained HTML report you can hand to a client.
+It detects the project's stack, runs pinned open-source scanners, then has Claude review what scanners cannot see: access control and IDOR, mass assignment, auth and session handling, SSRF, CSRF, file uploads, migrations and N+1 queries, API versioning, and mobile risks. Every finding is checked against the code before it is reported. You get a developer list in chat and a self-contained HTML report you can hand to a client.
 
 ### Where it comes from
 
@@ -259,9 +259,9 @@ Plugin skills can appear namespaced (`/dev-workflow:secure-review`); type `/secu
 | Node API (Express, NestJS, Fastify) | web-secure-verification, semgrep (`p/nodejs`, `p/expressjs`) | node-api, database |
 | Python (Django, Flask, FastAPI) | bandit, pip-audit, semgrep (`p/python` + framework) | python, database |
 | PHP (Laravel) | osv-scanner (`composer.lock`), semgrep (`p/php`) | php, database |
-| Capacitor, Electron, React Native, native iOS | web-secure-verification, semgrep, osv-scanner (CocoaPods) | mobile-desktop |
+| React Native, native iOS | web-secure-verification, semgrep, osv-scanner (CocoaPods) | mobile-desktop |
 | Any project with queries or migrations | (AI review only) | database: mass assignment, migration quality, N+1 |
-| Every project | semgrep `p/owasp-top-ten`, gitleaks (secrets: full git history in `full`, commits since base in `diff`) | general: access control, auth, secrets, injection, SSRF/CSRF, business logic, caching, GraphQL/WebSockets, privacy and compliance, AI/LLM features, CI and containers |
+| Every project | semgrep `p/owasp-top-ten`, gitleaks (secrets: full git history in `full`, commits since base in `diff`) | general: access control, auth, secrets, injection, SSRF/CSRF, caching, GraphQL/WebSockets, privacy and compliance, AI/LLM features, CI and containers |
 
 ### What you get
 

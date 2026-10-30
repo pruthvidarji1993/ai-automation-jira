@@ -102,10 +102,6 @@ def detect(root):
                 stacks.add("react")
             if deps.keys() & {"express", "@nestjs/core", "fastify", "koa", "hono", "@hapi/hapi"}:
                 stacks.add("node-api")
-            if any(d.startswith("@capacitor/") for d in deps):
-                stacks.add("capacitor")
-            if "electron" in deps:
-                stacks.add("electron")
             if "react-native" in deps:
                 stacks.add("react-native")
         py_files = [f for f in files if f in {"pyproject.toml", "Pipfile", "setup.py", "setup.cfg"}
@@ -118,7 +114,7 @@ def detect(root):
             stacks.add("docker")
         if "composer.json" in files:
             stacks.add("php")
-        if {"Podfile", "Package.swift"} & set(files):  # native iOS side of Capacitor / React Native apps
+        if {"Podfile", "Package.swift"} & set(files):  # native iOS side of React Native apps
             stacks.add("ios")
         if stacks:
             projects.append({"path": rel.as_posix() if rel.parts else ".", "stacks": sorted(stacks)})
@@ -822,16 +818,16 @@ def cmd_selftest(_):
         root = Path(t)
         (root / "web").mkdir()
         (root / "package.json").write_text('{"private":true,"workspaces":["web"]}')
-        (root / "web/package.json").write_text('{"dependencies":{"next":"15.0.0","@capacitor/core":"7"}}')
+        (root / "web/package.json").write_text('{"dependencies":{"next":"15.0.0","react-native":"0.76"}}')
         (root / "api").mkdir()
         (root / "api/requirements.txt").write_text("Django==4.2\n")
         (root / "node_modules/x").mkdir(parents=True)
         (root / "node_modules/x/package.json").write_text('{"dependencies":{"express":"4"}}')
-        for d, f in (("cms", "composer.json"), ("web/ios", "Podfile"), ("svc", "go.mod")):
+        for d, f in (("cms", "composer.json"), ("web/ios", "Podfile"), ("svc", "Makefile")):
             (root / d).mkdir(exist_ok=True)
             (root / d / f).write_text("")
         got = {p["path"]: p["stacks"] for p in detect(root)}
-        assert got == {"web": ["capacitor", "next", "node", "react"], "api": ["django", "python"], "cms": ["php"],
+        assert got == {"web": ["next", "node", "react", "react-native"], "api": ["django", "python"], "cms": ["php"],
                        "web/ios": ["ios"]}, got
 
     osv = {"results": [{"source": {"path": "/r/php/composer.lock"}, "packages": [
