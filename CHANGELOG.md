@@ -8,7 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [1.3.3] - 2026-10-30
 
 ### Fixed
-- `secure-review`: an unexpected crash in one scanner (install failure, bad output, unreadable file) no longer aborts the run; it is recorded as `failed` and the other tools still run. A repo with no recognised stack gets a note and the language-agnostic tools only
+- `secure-review`: an unexpected crash in one scanner (install failure, bad output, unreadable file) no longer aborts the run; it is recorded as `failed` and the other tools still run. A repo with no recognised stack gets a note and the language-agnostic tools only; osv-scanner with no lockfile is `skipped` with a hint instead of `failed`
 
 ## [1.3.2] - 2026-10-30
 

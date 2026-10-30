@@ -513,7 +513,9 @@ def scan_osv(root, tools):
     try:
         found = norm_osv(json.loads(out), root)
     except ValueError:
-        tools.append(tool("osv-scanner", ".", "failed", tail(err)))
+        no_lock = "no package sources" in (err or "").lower()  # composer.json without composer.lock, etc.
+        tools.append(tool("osv-scanner", ".", "skipped" if no_lock else "failed",
+                          "no lockfile found (composer.lock / Podfile.lock) - generate one and re-run" if no_lock else tail(err)))
         return []
     tools.append(tool("osv-scanner", ".", "ran", "Composer, CocoaPods", len(found)))
     return found
