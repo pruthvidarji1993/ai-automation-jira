@@ -420,6 +420,15 @@ def rel_path(f, root):
 
 # ---- scanner runs ---------------------------------------------------------
 
+def guarded(name, proj, tools, fn, *args):
+    """Run one scanner; an unexpected crash becomes a 'failed' row so the other tools still run."""
+    try:
+        return fn(*args)
+    except Exception as e:
+        tools.append(tool(name, proj, "failed", f"{type(e).__name__}: {e}"[:200]))
+        return []
+
+
 def scan_wsv(root, proj, stacks, mode, tools, raw):
     npx = shutil.which("npx")
     pdir = root / proj
@@ -601,20 +610,31 @@ def cmd_scan(a):
             notes.append("no git base branch found - ran a full scan instead of diff")
     projects = detect(root)
     stacks = set().union(*(p["stacks"] for p in projects)) if projects else set()
+    if not stacks:
+        notes.append("no known stack detected - ran only the language-agnostic tools (semgrep OWASP rules, gitleaks)")
     tools, found = [], []
+
+    def py_ready():
+        try:
+            return ensure_py_tools(tools)
+        except Exception as e:
+            tools.append(tool("python-tools", ".", "failed", f"{type(e).__name__}: {e}"[:200]))
+            return False
+
     for p in projects:
         if "node" in p["stacks"]:
-            found += scan_wsv(root, p["path"], set(p["stacks"]), mode, tools, raw)
-        if "python" in p["stacks"] and ensure_py_tools(tools):
+            found += guarded("web-secure-verification", p["path"], tools, scan_wsv, root, p["path"],
+                             set(p["stacks"]), mode, tools, raw)
+        if "python" in p["stacks"] and py_ready():
             if mode != "deps":
-                found += scan_bandit(root, p["path"], changed, tools)
-            found += scan_pip_audit(root, p["path"], tools)
+                found += guarded("bandit", p["path"], tools, scan_bandit, root, p["path"], changed, tools)
+            found += guarded("pip-audit", p["path"], tools, scan_pip_audit, root, p["path"], tools)
     if stacks & OSV_STACKS:
-        found += scan_osv(root, tools)
+        found += guarded("osv-scanner", ".", tools, scan_osv, root, tools)
     if mode != "deps":
-        if ensure_py_tools(tools):
-            found += scan_semgrep(root, stacks, changed, tools)
-        found += scan_gitleaks(root, mode, changed, is_git, tools, raw, base)
+        if py_ready():
+            found += guarded("semgrep", ".", tools, scan_semgrep, root, stacks, changed, tools)
+        found += guarded("gitleaks", ".", tools, scan_gitleaks, root, mode, changed, is_git, tools, raw, base)
     found = [f for f in found if not re.match(r"(.*/)?\.(claude|secure-review)/", f.get("file") or "")]
     if is_git:
         ignored = git_ignored(root, {f["file"] for f in found if f.get("file")})
@@ -891,6 +911,8 @@ def cmd_selftest(_):
         assert secrets == {"secret123"}, secrets
         assert redact({"note": ["signed with 'secret123' via POST /login"]}, secrets) == \
             {"note": ["signed with '[redacted]' via POST /login"]}
+    t = []
+    assert guarded("x", ".", t, lambda: 1 / 0) == [] and t[0]["status"] == "failed" and "ZeroDivisionError" in t[0]["note"]
     print("selftest ok")
 
 

@@ -50,6 +50,10 @@ installs tools (a few minutes, mostly semgrep). It prints the output
 directory, the detected stacks, each tool's status and raw counts. Read
 `<out>/scan.json` only as needed - it can be large.
 
+The scan never aborts on one broken tool: a tool that cannot install or crashes shows as `failed` or
+`skipped` with its reason, the rest still run, and unknown stacks fall back to semgrep's OWASP rules and
+gitleaks. List every `failed`/`skipped` tool under `limitations`.
+
 If a JS project shows `node_modules missing`, **do not install dependencies
 yourself** - install scripts run arbitrary code. Tell the developer, continue
 with the other tools, and list it under limitations.
